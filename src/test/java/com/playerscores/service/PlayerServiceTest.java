@@ -38,13 +38,10 @@ class PlayerServiceTest {
             return null;
         }).when(playerMapper).insert(any(Player.class));
 
-        PlayerRequest request = new PlayerRequest();
-        request.setUsername("Notch");
+        PlayerResponse response = playerService.createPlayer(new PlayerRequest("Notch"));
 
-        PlayerResponse response = playerService.createPlayer(request);
-
-        assertThat(response.getId()).isEqualTo(1L);
-        assertThat(response.getUsername()).isEqualTo("Notch");
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.username()).isEqualTo("Notch");
     }
 
     @Test
@@ -65,6 +62,6 @@ class PlayerServiceTest {
 
         PlayerResponse response = playerService.getPlayer(1L);
 
-        assertThat(response.getUsername()).isEqualTo("Notch");
+        assertThat(response.username()).isEqualTo("Notch");
     }
 }

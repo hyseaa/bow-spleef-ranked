@@ -1,6 +1,6 @@
 package com.playerscores.controller;
 
-import com.playerscores.dto.LeaderboardEntryDto;
+import com.playerscores.dto.LeaderboardEntryResponse;
 import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.ScoreRequest;
 import com.playerscores.dto.ScoreResponse;
@@ -47,7 +47,7 @@ public class ScoreController {
 
     @GetMapping("/leaderboard")
     @Operation(summary = "Get leaderboard (best score per player), optionally filtered by game")
-    public List<LeaderboardEntryDto> getLeaderboard(
+    public List<LeaderboardEntryResponse> getLeaderboard(
             @RequestParam(required = false) String game,
             @RequestParam(defaultValue = "10") int limit) {
         return scoreService.getLeaderboard(game, limit);

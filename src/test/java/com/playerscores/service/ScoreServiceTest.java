@@ -39,12 +39,7 @@ class ScoreServiceTest {
     void recordScore_playerNotFound_throwsException() {
         when(playerMapper.findById(99L)).thenReturn(Optional.empty());
 
-        ScoreRequest request = new ScoreRequest();
-        request.setPlayerId(99L);
-        request.setValue(100);
-        request.setGame("bedwars");
-
-        assertThatThrownBy(() -> scoreService.recordScore(request))
+        assertThatThrownBy(() -> scoreService.recordScore(new ScoreRequest(99L, 100, "bedwars")))
                 .isInstanceOf(PlayerNotFoundException.class);
     }
 
@@ -61,16 +56,11 @@ class ScoreServiceTest {
             return null;
         }).when(scoreMapper).insert(any(Score.class));
 
-        ScoreRequest request = new ScoreRequest();
-        request.setPlayerId(1L);
-        request.setValue(500);
-        request.setGame("bedwars");
+        ScoreResponse response = scoreService.recordScore(new ScoreRequest(1L, 500, "bedwars"));
 
-        ScoreResponse response = scoreService.recordScore(request);
-
-        assertThat(response.getId()).isEqualTo(10L);
-        assertThat(response.getValue()).isEqualTo(500);
-        assertThat(response.getGame()).isEqualTo("bedwars");
+        assertThat(response.id()).isEqualTo(10L);
+        assertThat(response.value()).isEqualTo(500);
+        assertThat(response.game()).isEqualTo("bedwars");
     }
 
     @Test
@@ -90,7 +80,7 @@ class ScoreServiceTest {
 
         var result = scoreService.getScores(1L, "skywars", 0, 20);
 
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getGame()).isEqualTo("skywars");
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().getFirst().game()).isEqualTo("skywars");
     }
 }

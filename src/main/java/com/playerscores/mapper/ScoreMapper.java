@@ -1,6 +1,6 @@
 package com.playerscores.mapper;
 
-import com.playerscores.dto.LeaderboardEntryDto;
+import com.playerscores.dto.LeaderboardEntryResponse;
 import com.playerscores.model.Score;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -31,5 +31,5 @@ public interface ScoreMapper {
     long countByPlayerIdAndGame(@Param("playerId") Long playerId, @Param("game") String game);
 
     @SelectProvider(type = ScoreSqlProvider.class, method = "findLeaderboard")
-    List<LeaderboardEntryDto> findLeaderboard(@Param("game") String game, @Param("limit") int limit);
+    List<LeaderboardEntryResponse> findLeaderboard(@Param("game") String game, @Param("limit") int limit);
 }

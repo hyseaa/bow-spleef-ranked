@@ -37,18 +37,11 @@ class PlayerControllerTest {
 
     @Test
     void createPlayer_returns201() throws Exception {
-        PlayerResponse response = new PlayerResponse();
-        response.setId(1L);
-        response.setUsername("Notch");
-        response.setCreatedAt(LocalDateTime.now());
-        when(playerService.createPlayer(any())).thenReturn(response);
-
-        PlayerRequest request = new PlayerRequest();
-        request.setUsername("Notch");
+        when(playerService.createPlayer(any())).thenReturn(new PlayerResponse(1L, "Notch", LocalDateTime.now()));
 
         mockMvc.perform(post("/api/v1/players")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new PlayerRequest("Notch"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.username").value("Notch"));
@@ -56,22 +49,15 @@ class PlayerControllerTest {
 
     @Test
     void createPlayer_blankUsername_returns400() throws Exception {
-        PlayerRequest request = new PlayerRequest();
-        request.setUsername("");
-
         mockMvc.perform(post("/api/v1/players")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new PlayerRequest(""))))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void getPlayer_found_returns200() throws Exception {
-        PlayerResponse response = new PlayerResponse();
-        response.setId(1L);
-        response.setUsername("Notch");
-        response.setCreatedAt(LocalDateTime.now());
-        when(playerService.getPlayer(1L)).thenReturn(response);
+        when(playerService.getPlayer(1L)).thenReturn(new PlayerResponse(1L, "Notch", LocalDateTime.now()));
 
         mockMvc.perform(get("/api/v1/players/1"))
                 .andExpect(status().isOk())

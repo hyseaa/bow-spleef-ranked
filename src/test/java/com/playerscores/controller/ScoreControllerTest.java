@@ -1,7 +1,8 @@
 package com.playerscores.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.playerscores.dto.LeaderboardEntryDto;
+import com.playerscores.dto.LeaderboardEntryResponse;
+import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.ScoreRequest;
 import com.playerscores.dto.ScoreResponse;
 import com.playerscores.service.ScoreService;
@@ -17,7 +18,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
@@ -40,22 +40,12 @@ class ScoreControllerTest {
 
     @Test
     void recordScore_returns201() throws Exception {
-        ScoreResponse response = new ScoreResponse();
-        response.setId(1L);
-        response.setPlayerId(1L);
-        response.setValue(300);
-        response.setGame("bedwars");
-        response.setCreatedAt(LocalDateTime.now());
-        when(scoreService.recordScore(any())).thenReturn(response);
-
-        ScoreRequest request = new ScoreRequest();
-        request.setPlayerId(1L);
-        request.setValue(300);
-        request.setGame("bedwars");
+        when(scoreService.recordScore(eq(new ScoreRequest(1L, 300, "bedwars"))))
+                .thenReturn(new ScoreResponse(1L, 1L, 300, "bedwars", LocalDateTime.now()));
 
         mockMvc.perform(post("/api/v1/scores")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new ScoreRequest(1L, 300, "bedwars"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.value").value(300))
                 .andExpect(jsonPath("$.game").value("bedwars"));
@@ -63,15 +53,8 @@ class ScoreControllerTest {
 
     @Test
     void getScores_returns200() throws Exception {
-        ScoreResponse score = new ScoreResponse();
-        score.setId(1L);
-        score.setPlayerId(1L);
-        score.setValue(100);
-        score.setGame("skywars");
-        score.setCreatedAt(LocalDateTime.now());
-
-        com.playerscores.dto.PageResponse<ScoreResponse> page =
-                com.playerscores.dto.PageResponse.of(List.of(score), 0, 20, 1L);
+        PageResponse<ScoreResponse> page = PageResponse.of(
+                List.of(new ScoreResponse(1L, 1L, 100, "skywars", LocalDateTime.now())), 0, 20, 1L);
         when(scoreService.getScores(eq(1L), isNull(), eq(0), eq(20))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/scores").param("playerId", "1"))
@@ -81,12 +64,8 @@ class ScoreControllerTest {
 
     @Test
     void getLeaderboard_returns200() throws Exception {
-        LeaderboardEntryDto entry = new LeaderboardEntryDto();
-        entry.setPlayerId(1L);
-        entry.setUsername("Notch");
-        entry.setBestScore(999);
-        entry.setGame("bedwars");
-        when(scoreService.getLeaderboard(isNull(), eq(10))).thenReturn(List.of(entry));
+        when(scoreService.getLeaderboard(isNull(), eq(10)))
+                .thenReturn(List.of(new LeaderboardEntryResponse(1L, "Notch", 999, "bedwars")));
 
         mockMvc.perform(get("/api/v1/scores/leaderboard"))
                 .andExpect(status().isOk())

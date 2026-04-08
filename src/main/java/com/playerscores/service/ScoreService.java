@@ -1,6 +1,6 @@
 package com.playerscores.service;
 
-import com.playerscores.dto.LeaderboardEntryDto;
+import com.playerscores.dto.LeaderboardEntryResponse;
 import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.ScoreRequest;
 import com.playerscores.dto.ScoreResponse;
@@ -23,13 +23,13 @@ public class ScoreService {
 
     @Transactional
     public ScoreResponse recordScore(ScoreRequest request) {
-        playerMapper.findById(request.getPlayerId())
-                .orElseThrow(() -> new PlayerNotFoundException(request.getPlayerId()));
+        playerMapper.findById(request.playerId())
+                .orElseThrow(() -> new PlayerNotFoundException(request.playerId()));
 
         Score score = new Score();
-        score.setPlayerId(request.getPlayerId());
-        score.setValue(request.getValue());
-        score.setGame(request.getGame());
+        score.setPlayerId(request.playerId());
+        score.setValue(request.value());
+        score.setGame(request.game());
         scoreMapper.insert(score);
         return toResponse(score);
     }
@@ -54,17 +54,11 @@ public class ScoreService {
         return PageResponse.of(scores.stream().map(this::toResponse).toList(), page, size, total);
     }
 
-    public List<LeaderboardEntryDto> getLeaderboard(String game, int limit) {
+    public List<LeaderboardEntryResponse> getLeaderboard(String game, int limit) {
         return scoreMapper.findLeaderboard(game, limit);
     }
 
     private ScoreResponse toResponse(Score score) {
-        ScoreResponse response = new ScoreResponse();
-        response.setId(score.getId());
-        response.setPlayerId(score.getPlayerId());
-        response.setValue(score.getValue());
-        response.setGame(score.getGame());
-        response.setCreatedAt(score.getCreatedAt());
-        return response;
+        return new ScoreResponse(score.getId(), score.getPlayerId(), score.getValue(), score.getGame(), score.getCreatedAt());
     }
 }

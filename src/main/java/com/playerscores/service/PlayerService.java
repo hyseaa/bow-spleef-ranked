@@ -18,7 +18,7 @@ public class PlayerService {
     @Transactional
     public PlayerResponse createPlayer(PlayerRequest request) {
         Player player = new Player();
-        player.setUsername(request.getUsername());
+        player.setUsername(request.username());
         playerMapper.insert(player);
         return toResponse(player);
     }
@@ -30,10 +30,6 @@ public class PlayerService {
     }
 
     private PlayerResponse toResponse(Player player) {
-        PlayerResponse response = new PlayerResponse();
-        response.setId(player.getId());
-        response.setUsername(player.getUsername());
-        response.setCreatedAt(player.getCreatedAt());
-        return response;
+        return new PlayerResponse(player.getId(), player.getUsername(), player.getCreatedAt());
     }
 }

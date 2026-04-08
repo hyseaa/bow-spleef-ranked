@@ -42,9 +42,11 @@ docker compose up -d
 ## Conventions
 - Utiliser des DTOs distincts des modèles
 - Les services ne retournent jamais des modèles directement (toujours des DTOs)
-- Les requêtes SQL complexes vont dans des fichiers XML (`resources/mapper/*.xml`), les simples peuvent être en annotation `@Select`/`@Insert`/etc.
+- Les DTOs sont des `record` Java — immuables, pas de Lombok
+- Nommage des DTOs : `*Request` pour les entrées HTTP, `*Response` pour les sorties HTTP
+- Les requêtes SQL simples en annotation `@Select`/`@Insert`/etc., les complexes (SQL dynamique) via `@SelectProvider`
 - Les migrations Flyway sont dans `resources/db/migration/` avec la convention `V{version}__{description}.sql` (ex: `V1__create_players.sql`)
-- Les tests d'intégration utilisent une BDD H2 in-memory (profil `test`)
+- Tests unitaires : Mockito pur (pas de Spring context) ; tests d'intégration : hériter de `AbstractIntegrationTest` (Testcontainers PostgreSQL)
 - Nommage : camelCase pour les champs Java, snake_case pour les colonnes SQL
 - Endpoints en kebab-case : `/api/v1/player-scores`
 

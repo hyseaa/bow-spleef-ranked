@@ -40,12 +40,12 @@ class MatchControllerTest {
 
     @Test
     void createMatch_returns201() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "BEDWARS", LocalDateTime.now(), List.of());
+        MatchResponse response = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", LocalDateTime.now(), List.of());
         when(matchService.createMatch(any())).thenReturn(response);
 
-        CreateMatchRequest request = new CreateMatchRequest("BEDWARS",
-                List.of(new TeamRequest("RED", 3, List.of(UUID.randomUUID())),
-                        new TeamRequest("BLUE", 1, List.of(UUID.randomUUID()))),
+        CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(UUID.randomUUID())),
+                        new TeamRequest(1, List.of(UUID.randomUUID()))),
                 null);
 
         mockMvc.perform(post("/api/v1/matches")
@@ -57,7 +57,7 @@ class MatchControllerTest {
 
     @Test
     void getMatch_found_returns200() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "SKYWARS", LocalDateTime.now(), List.of());
+        MatchResponse response = new MatchResponse(1L, "SKYWARS", "FRONT", LocalDateTime.now(), List.of());
         when(matchService.getMatch(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/matches/1"))

@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public record CreateMatchRequest(
         @NotBlank String gameType,
+        @NotBlank String source,
         @NotNull @Size(min = 2) List<@Valid TeamRequest> teams,
         Map<UUID, Map<String, Object>> playerStats
 ) {}

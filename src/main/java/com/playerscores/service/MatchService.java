@@ -46,12 +46,12 @@ public class MatchService {
 
         Match match = new Match();
         match.setGameType(request.gameType());
+        match.setSource(request.source());
         matchMapper.insert(match);
 
         for (TeamRequest teamReq : request.teams()) {
             Team team = new Team();
             team.setMatchId(match.getId());
-            team.setColor(teamReq.color());
             team.setScore(teamReq.score());
             teamMapper.insert(team);
 
@@ -85,12 +85,11 @@ public class MatchService {
         List<TeamResponse> teams = teamMapper.findByMatchId(id).stream()
                 .map(team -> new TeamResponse(
                         team.getId(),
-                        team.getColor(),
                         team.getScore(),
                         teamPlayerMapper.findPlayersByTeamId(team.getId())
                 ))
                 .toList();
 
-        return new MatchResponse(match.getId(), match.getGameType(), match.getPlayedAt(), teams);
+        return new MatchResponse(match.getId(), match.getGameType(), match.getSource(), match.getPlayedAt(), teams);
     }
 }

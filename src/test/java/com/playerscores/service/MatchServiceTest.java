@@ -58,9 +58,9 @@ class MatchServiceTest {
         UUID uuid = UUID.randomUUID();
         when(playerMapper.findByUuid(uuid)).thenReturn(Optional.empty());
 
-        CreateMatchRequest request = new CreateMatchRequest("BEDWARS",
-                List.of(new TeamRequest("RED", 3, List.of(uuid)),
-                        new TeamRequest("BLUE", 1, List.of())), null);
+        CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(uuid)),
+                        new TeamRequest(1, List.of())), null);
 
         assertThatThrownBy(() -> matchService.createMatch(request))
                 .isInstanceOf(PlayerNotFoundException.class);
@@ -93,20 +93,20 @@ class MatchServiceTest {
         Match match = new Match();
         match.setId(1L);
         match.setGameType("BEDWARS");
+        match.setSource("DISCORD_BOT");
         match.setPlayedAt(LocalDateTime.now());
         when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
 
         Team team = new Team();
         team.setId(1L);
-        team.setColor("RED");
         team.setScore(3);
         when(teamMapper.findByMatchId(1L)).thenReturn(List.of(team));
         when(teamPlayerMapper.findPlayersByTeamId(1L))
                 .thenReturn(List.of(new PlayerSummaryResponse(uuid, "Notch")));
 
-        CreateMatchRequest request = new CreateMatchRequest("BEDWARS",
-                List.of(new TeamRequest("RED", 3, List.of(uuid)),
-                        new TeamRequest("BLUE", 1, List.of())), null);
+        CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(uuid)),
+                        new TeamRequest(1, List.of())), null);
 
         MatchResponse response = matchService.createMatch(request);
 

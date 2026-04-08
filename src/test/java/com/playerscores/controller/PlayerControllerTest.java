@@ -14,7 +14,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +40,7 @@ class PlayerControllerTest {
     void upsertPlayer_returns200() throws Exception {
         UUID uuid = UUID.randomUUID();
         when(playerService.upsertPlayer(eq(uuid), any()))
-                .thenReturn(new PlayerResponse(uuid, "Notch", LocalDateTime.now()));
+                .thenReturn(new PlayerResponse(uuid, "Notch"));
 
         mockMvc.perform(put("/api/v1/players/" + uuid)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -64,7 +63,7 @@ class PlayerControllerTest {
     void getPlayer_found_returns200() throws Exception {
         UUID uuid = UUID.randomUUID();
         when(playerService.getPlayer(uuid))
-                .thenReturn(new PlayerResponse(uuid, "Notch", LocalDateTime.now()));
+                .thenReturn(new PlayerResponse(uuid, "Notch"));
 
         mockMvc.perform(get("/api/v1/players/" + uuid))
                 .andExpect(status().isOk())

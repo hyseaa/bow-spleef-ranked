@@ -8,5 +8,6 @@ import java.time.LocalDateTime;
 public class Match {
     private Long id;
     private String gameType;
+    private String source;
     private LocalDateTime playedAt;
 }

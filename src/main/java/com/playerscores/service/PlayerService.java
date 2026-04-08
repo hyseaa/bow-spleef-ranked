@@ -34,6 +34,6 @@ public class PlayerService {
     }
 
     private PlayerResponse toResponse(Player player) {
-        return new PlayerResponse(player.getUuid(), player.getUsername(), player.getFirstSeenAt());
+        return new PlayerResponse(player.getUuid(), player.getUsername());
     }
 }

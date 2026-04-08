@@ -11,10 +11,10 @@ import java.util.List;
 @Mapper
 public interface TeamMapper {
 
-    @Insert("INSERT INTO team (match_id, color, score) VALUES (#{matchId}, #{color}, #{score})")
+    @Insert("INSERT INTO team (match_id, score) VALUES (#{matchId}, #{score})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Team team);
 
-    @Select("SELECT id, match_id, color, score FROM team WHERE match_id = #{matchId}")
+    @Select("SELECT id, match_id, score FROM team WHERE match_id = #{matchId}")
     List<Team> findByMatchId(Long matchId);
 }

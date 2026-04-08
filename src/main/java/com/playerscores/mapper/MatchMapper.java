@@ -11,10 +11,10 @@ import java.util.Optional;
 @Mapper
 public interface MatchMapper {
 
-    @Insert("INSERT INTO match (game_type, played_at) VALUES (#{gameType}, NOW())")
+    @Insert("INSERT INTO match (game_type, source, played_at) VALUES (#{gameType}, #{source}, NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Match match);
 
-    @Select("SELECT id, game_type, played_at FROM match WHERE id = #{id}")
+    @Select("SELECT id, game_type, source, played_at FROM match WHERE id = #{id}")
     Optional<Match> findById(Long id);
 }

@@ -11,10 +11,10 @@ import java.util.UUID;
 @Mapper
 public interface PlayerMapper {
 
-    @Insert("INSERT INTO player (uuid, username, first_seen_at) VALUES (#{uuid}, #{username}, NOW()) "
+    @Insert("INSERT INTO player (uuid, username) VALUES (#{uuid}, #{username}) "
             + "ON CONFLICT (uuid) DO UPDATE SET username = EXCLUDED.username")
     void upsert(Player player);
 
-    @Select("SELECT uuid, username, first_seen_at FROM player WHERE uuid = #{uuid}")
+    @Select("SELECT uuid, username FROM player WHERE uuid = #{uuid}")
     Optional<Player> findByUuid(UUID uuid);
 }

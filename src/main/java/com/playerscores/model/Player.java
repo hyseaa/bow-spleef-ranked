@@ -3,10 +3,11 @@ package com.playerscores.model;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 public class Player {
-    private Long id;
+    private UUID uuid;
     private String username;
-    private LocalDateTime createdAt;
+    private LocalDateTime firstSeenAt;
 }

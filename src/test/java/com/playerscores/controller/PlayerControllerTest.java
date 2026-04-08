@@ -15,11 +15,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,20 +38,23 @@ class PlayerControllerTest {
     private PlayerService playerService;
 
     @Test
-    void createPlayer_returns201() throws Exception {
-        when(playerService.createPlayer(any())).thenReturn(new PlayerResponse(1L, "Notch", LocalDateTime.now()));
+    void upsertPlayer_returns200() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        when(playerService.upsertPlayer(eq(uuid), any()))
+                .thenReturn(new PlayerResponse(uuid, "Notch", LocalDateTime.now()));
 
-        mockMvc.perform(post("/api/v1/players")
+        mockMvc.perform(put("/api/v1/players/" + uuid)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new PlayerRequest("Notch"))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("Notch"));
     }
 
     @Test
-    void createPlayer_blankUsername_returns400() throws Exception {
-        mockMvc.perform(post("/api/v1/players")
+    void upsertPlayer_blankUsername_returns400() throws Exception {
+        UUID uuid = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/players/" + uuid)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new PlayerRequest(""))))
                 .andExpect(status().isBadRequest());
@@ -57,18 +62,21 @@ class PlayerControllerTest {
 
     @Test
     void getPlayer_found_returns200() throws Exception {
-        when(playerService.getPlayer(1L)).thenReturn(new PlayerResponse(1L, "Notch", LocalDateTime.now()));
+        UUID uuid = UUID.randomUUID();
+        when(playerService.getPlayer(uuid))
+                .thenReturn(new PlayerResponse(uuid, "Notch", LocalDateTime.now()));
 
-        mockMvc.perform(get("/api/v1/players/1"))
+        mockMvc.perform(get("/api/v1/players/" + uuid))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("Notch"));
     }
 
     @Test
     void getPlayer_notFound_returns404() throws Exception {
-        when(playerService.getPlayer(99L)).thenThrow(new PlayerNotFoundException(99L));
+        UUID uuid = UUID.randomUUID();
+        when(playerService.getPlayer(uuid)).thenThrow(new PlayerNotFoundException(uuid));
 
-        mockMvc.perform(get("/api/v1/players/99"))
+        mockMvc.perform(get("/api/v1/players/" + uuid))
                 .andExpect(status().isNotFound());
     }
 }

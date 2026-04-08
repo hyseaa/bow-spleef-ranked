@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class PlayerService {
@@ -16,20 +18,22 @@ public class PlayerService {
     private final PlayerMapper playerMapper;
 
     @Transactional
-    public PlayerResponse createPlayer(PlayerRequest request) {
+    public PlayerResponse upsertPlayer(UUID uuid, PlayerRequest request) {
         Player player = new Player();
+        player.setUuid(uuid);
         player.setUsername(request.username());
-        playerMapper.insert(player);
-        return toResponse(player);
+        playerMapper.upsert(player);
+        return playerMapper.findByUuid(uuid).map(this::toResponse).orElseThrow();
     }
 
-    public PlayerResponse getPlayer(Long id) {
-        return playerMapper.findById(id)
+    @Transactional(readOnly = true)
+    public PlayerResponse getPlayer(UUID uuid) {
+        return playerMapper.findByUuid(uuid)
                 .map(this::toResponse)
-                .orElseThrow(() -> new PlayerNotFoundException(id));
+                .orElseThrow(() -> new PlayerNotFoundException(uuid));
     }
 
     private PlayerResponse toResponse(Player player) {
-        return new PlayerResponse(player.getId(), player.getUsername(), player.getCreatedAt());
+        return new PlayerResponse(player.getUuid(), player.getUsername(), player.getFirstSeenAt());
     }
 }

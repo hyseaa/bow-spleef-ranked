@@ -13,8 +13,8 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(PlayerNotFoundException.class)
-    public ProblemDetail handlePlayerNotFound(PlayerNotFoundException ex) {
+    @ExceptionHandler({PlayerNotFoundException.class, MatchNotFoundException.class})
+    public ProblemDetail handleNotFound(RuntimeException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 

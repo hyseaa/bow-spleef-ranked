@@ -13,11 +13,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,37 +29,39 @@ class PlayerServiceTest {
     private PlayerService playerService;
 
     @Test
-    void createPlayer_returnsResponse() {
-        doAnswer(invocation -> {
-            Player p = invocation.getArgument(0);
-            p.setId(1L);
-            p.setCreatedAt(LocalDateTime.now());
-            return null;
-        }).when(playerMapper).insert(any(Player.class));
+    void upsertPlayer_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player();
+        player.setUuid(uuid);
+        player.setUsername("Notch");
+        player.setFirstSeenAt(LocalDateTime.now());
+        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.of(player));
 
-        PlayerResponse response = playerService.createPlayer(new PlayerRequest("Notch"));
+        PlayerResponse response = playerService.upsertPlayer(uuid, new PlayerRequest("Notch"));
 
-        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.uuid()).isEqualTo(uuid);
         assertThat(response.username()).isEqualTo("Notch");
     }
 
     @Test
     void getPlayer_notFound_throwsException() {
-        when(playerMapper.findById(99L)).thenReturn(Optional.empty());
+        UUID uuid = UUID.randomUUID();
+        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> playerService.getPlayer(99L))
+        assertThatThrownBy(() -> playerService.getPlayer(uuid))
                 .isInstanceOf(PlayerNotFoundException.class);
     }
 
     @Test
     void getPlayer_found_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
         Player player = new Player();
-        player.setId(1L);
+        player.setUuid(uuid);
         player.setUsername("Notch");
-        player.setCreatedAt(LocalDateTime.now());
-        when(playerMapper.findById(1L)).thenReturn(Optional.of(player));
+        player.setFirstSeenAt(LocalDateTime.now());
+        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.of(player));
 
-        PlayerResponse response = playerService.getPlayer(1L);
+        PlayerResponse response = playerService.getPlayer(uuid);
 
         assertThat(response.username()).isEqualTo("Notch");
     }

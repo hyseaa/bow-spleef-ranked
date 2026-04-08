@@ -1,5 +1,6 @@
 package com.playerscores.dto;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
-public record PlayerResponse(Long id, String username, LocalDateTime createdAt) {}
+public record PlayerResponse(UUID uuid, String username, LocalDateTime firstSeenAt) {}

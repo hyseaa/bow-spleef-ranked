@@ -1,6 +1,5 @@
 package com.playerscores.mapper;
 
-import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.model.TeamPlayer;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -8,6 +7,7 @@ import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface TeamPlayerMapper {
@@ -16,8 +16,6 @@ public interface TeamPlayerMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(TeamPlayer teamPlayer);
 
-    @Select("SELECT p.uuid, p.username "
-            + "FROM team_player tp JOIN player p ON p.uuid = tp.player_uuid "
-            + "WHERE tp.team_id = #{teamId}")
-    List<PlayerSummaryResponse> findPlayersByTeamId(Long teamId);
+    @Select("SELECT player_uuid FROM team_player WHERE team_id = #{teamId}")
+    List<UUID> findPlayerUuidsByTeamId(Long teamId);
 }

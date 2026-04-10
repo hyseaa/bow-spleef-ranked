@@ -163,6 +163,8 @@
                                 <exclude>com/playerscores/ApiApplication.class</exclude>
                                 <exclude>com/playerscores/config/**</exclude>
                                 <exclude>com/playerscores/mapper/ScoreSqlProvider.class</exclude>
+                                <exclude>com/playerscores/client/MojangClient.class</exclude>
+                                <exclude>com/playerscores/client/HypixelClient.class</exclude>
                             </excludes>
                             <rules>
                                 <rule>

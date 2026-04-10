@@ -1,0 +1,3 @@
+ALTER TABLE player ADD COLUMN discord_id VARCHAR(20) UNIQUE;
+ALTER TABLE player ADD COLUMN username VARCHAR(16);
+ALTER TABLE player ADD COLUMN username_cached_at TIMESTAMPTZ;

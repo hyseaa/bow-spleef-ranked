@@ -1,8 +1,8 @@
 package com.playerscores.service;
 
-import com.playerscores.dto.PlayerRequest;
 import com.playerscores.dto.PlayerResponse;
 import com.playerscores.exception.PlayerNotFoundException;
+import com.playerscores.mapper.LeaderboardMapper;
 import com.playerscores.mapper.PlayerMapper;
 import com.playerscores.model.Player;
 import org.junit.jupiter.api.Test;
@@ -23,6 +23,10 @@ class PlayerServiceTest {
 
     @Mock
     private PlayerMapper playerMapper;
+    @Mock
+    private LeaderboardMapper leaderboardMapper;
+    @Mock
+    private UsernameCache usernameCache;
 
     @InjectMocks
     private PlayerService playerService;
@@ -30,12 +34,9 @@ class PlayerServiceTest {
     @Test
     void upsertPlayer_returnsResponse() {
         UUID uuid = UUID.randomUUID();
-        Player player = new Player();
-        player.setUuid(uuid);
-        player.setUsername("Notch");
-        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.of(player));
+        when(usernameCache.get(uuid)).thenReturn("Notch");
 
-        PlayerResponse response = playerService.upsertPlayer(uuid, new PlayerRequest("Notch"));
+        PlayerResponse response = playerService.upsertPlayer(uuid);
 
         assertThat(response.uuid()).isEqualTo(uuid);
         assertThat(response.username()).isEqualTo("Notch");
@@ -55,8 +56,8 @@ class PlayerServiceTest {
         UUID uuid = UUID.randomUUID();
         Player player = new Player();
         player.setUuid(uuid);
-        player.setUsername("Notch");
         when(playerMapper.findByUuid(uuid)).thenReturn(Optional.of(player));
+        when(usernameCache.get(uuid)).thenReturn("Notch");
 
         PlayerResponse response = playerService.getPlayer(uuid);
 

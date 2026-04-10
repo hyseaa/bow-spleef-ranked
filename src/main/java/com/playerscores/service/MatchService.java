@@ -4,10 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchResponse;
+import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.dto.TeamResponse;
 import com.playerscores.exception.MatchNotFoundException;
-import com.playerscores.exception.PlayerNotFoundException;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
 import com.playerscores.mapper.PlayerMapper;
@@ -34,13 +34,14 @@ public class MatchService {
     private final TeamPlayerMapper teamPlayerMapper;
     private final MatchPlayerStatMapper matchPlayerStatMapper;
     private final PlayerMapper playerMapper;
+    private final UsernameCache usernameCache;
     private final ObjectMapper objectMapper;
 
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request) {
         for (TeamRequest teamReq : request.teams()) {
             for (UUID uuid : teamReq.playerUuids()) {
-                playerMapper.findByUuid(uuid).orElseThrow(() -> new PlayerNotFoundException(uuid));
+                playerMapper.insertIfAbsent(uuid);
             }
         }
 
@@ -83,11 +84,13 @@ public class MatchService {
         Match match = matchMapper.findById(id).orElseThrow(() -> new MatchNotFoundException(id));
 
         List<TeamResponse> teams = teamMapper.findByMatchId(id).stream()
-                .map(team -> new TeamResponse(
-                        team.getId(),
-                        team.getScore(),
-                        teamPlayerMapper.findPlayersByTeamId(team.getId())
-                ))
+                .map(team -> {
+                    List<PlayerSummaryResponse> players = teamPlayerMapper.findPlayerUuidsByTeamId(team.getId())
+                            .stream()
+                            .map(uuid -> new PlayerSummaryResponse(uuid, usernameCache.get(uuid)))
+                            .toList();
+                    return new TeamResponse(team.getId(), team.getScore(), players);
+                })
                 .toList();
 
         return new MatchResponse(match.getId(), match.getGameType(), match.getSource(), match.getPlayedAt(), teams);

@@ -1,7 +1,7 @@
 package com.playerscores.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.playerscores.dto.PlayerRequest;
+import com.playerscores.dto.LeaderboardEntryResponse;
+import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.PlayerResponse;
 import com.playerscores.exception.PlayerNotFoundException;
 import com.playerscores.service.PlayerService;
@@ -11,13 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -30,40 +28,23 @@ class PlayerControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockBean
     private PlayerService playerService;
 
     @Test
     void upsertPlayer_returns200() throws Exception {
         UUID uuid = UUID.randomUUID();
-        when(playerService.upsertPlayer(eq(uuid), any()))
-                .thenReturn(new PlayerResponse(uuid, "Notch"));
+        when(playerService.upsertPlayer(uuid)).thenReturn(new PlayerResponse(uuid, "Notch"));
 
-        mockMvc.perform(put("/api/v1/players/" + uuid)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new PlayerRequest("Notch"))))
+        mockMvc.perform(put("/api/v1/players/" + uuid))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("Notch"));
     }
 
     @Test
-    void upsertPlayer_blankUsername_returns400() throws Exception {
-        UUID uuid = UUID.randomUUID();
-
-        mockMvc.perform(put("/api/v1/players/" + uuid)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new PlayerRequest(""))))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
     void getPlayer_found_returns200() throws Exception {
         UUID uuid = UUID.randomUUID();
-        when(playerService.getPlayer(uuid))
-                .thenReturn(new PlayerResponse(uuid, "Notch"));
+        when(playerService.getPlayer(uuid)).thenReturn(new PlayerResponse(uuid, "Notch"));
 
         mockMvc.perform(get("/api/v1/players/" + uuid))
                 .andExpect(status().isOk())
@@ -77,5 +58,25 @@ class PlayerControllerTest {
 
         mockMvc.perform(get("/api/v1/players/" + uuid))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getLeaderboard_returnsPage() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        PageResponse<LeaderboardEntryResponse> page = PageResponse.of(
+                List.of(new LeaderboardEntryResponse(uuid, "Notch", 5)), 0, 20, 1);
+        when(playerService.getLeaderboard(0, 20)).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/players/leaderboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].username").value("Notch"))
+                .andExpect(jsonPath("$.content[0].wins").value(5))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void getLeaderboard_invalidSize_returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/players/leaderboard").param("size", "200"))
+                .andExpect(status().isBadRequest());
     }
 }

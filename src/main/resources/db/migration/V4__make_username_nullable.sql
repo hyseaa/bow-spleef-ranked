@@ -1,0 +1,1 @@
+ALTER TABLE player ALTER COLUMN username DROP NOT NULL;

@@ -2,12 +2,12 @@ package com.playerscores.model;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 public class Match {
     private Long id;
     private String gameType;
     private String source;
-    private LocalDateTime playedAt;
+    private OffsetDateTime playedAt;
 }

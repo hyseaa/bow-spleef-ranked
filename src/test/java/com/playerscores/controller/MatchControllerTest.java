@@ -15,7 +15,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,7 +40,7 @@ class MatchControllerTest {
 
     @Test
     void createMatch_returns201() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", LocalDateTime.now(), List.of());
+        MatchResponse response = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", OffsetDateTime.now(), List.of());
         when(matchService.createMatch(any())).thenReturn(response);
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
@@ -57,7 +57,7 @@ class MatchControllerTest {
 
     @Test
     void getMatch_found_returns200() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "SKYWARS", "FRONT", LocalDateTime.now(), List.of());
+        MatchResponse response = new MatchResponse(1L, "SKYWARS", "FRONT", OffsetDateTime.now(), List.of());
         when(matchService.getMatch(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/matches/1"))

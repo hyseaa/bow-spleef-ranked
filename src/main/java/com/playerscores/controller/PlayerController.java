@@ -40,6 +40,12 @@ public class PlayerController {
         return playerService.getPlayer(uuid);
     }
 
+    @GetMapping("/by-discord/{discordId}")
+    @Operation(summary = "Get a player by Discord ID")
+    public PlayerResponse getPlayerByDiscordId(@PathVariable String discordId) {
+        return playerService.getPlayerByDiscordId(discordId);
+    }
+
     @GetMapping("/leaderboard")
     @Operation(summary = "Get paginated win leaderboard")
     public PageResponse<LeaderboardEntryResponse> getLeaderboard(

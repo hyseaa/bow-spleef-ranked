@@ -4,6 +4,8 @@ import com.playerscores.client.HypixelClient;
 import com.playerscores.client.MojangClient;
 import com.playerscores.dto.VerifiedPlayerResponse;
 import com.playerscores.dto.VerifyRequest;
+import com.playerscores.exception.DiscordMismatchException;
+import com.playerscores.exception.MojangUsernameNotFoundException;
 import com.playerscores.exception.VerificationException;
 import com.playerscores.mapper.PlayerMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +28,7 @@ public class VerificationService {
     public VerifiedPlayerResponse verify(VerifyRequest request) {
         UUID uuid = mojangClient.getUuidByUsername(request.minecraftUsername());
         if (uuid == null) {
-            throw new VerificationException("Minecraft username not found: " + request.minecraftUsername());
+            throw new MojangUsernameNotFoundException(request.minecraftUsername());
         }
 
         String linkedDiscord = hypixelClient.getLinkedDiscord(uuid);
@@ -34,8 +36,7 @@ public class VerificationService {
             throw new VerificationException("No Discord linked on Hypixel profile.");
         }
         if (!linkedDiscord.equalsIgnoreCase(request.discordUsername())) {
-            throw new VerificationException(
-                    "Discord linked on Hypixel (" + linkedDiscord + ") does not match your account.");
+            throw new DiscordMismatchException(linkedDiscord);
         }
 
         playerMapper.insertIfAbsent(uuid);

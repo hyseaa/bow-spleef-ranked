@@ -14,4 +14,8 @@ public class PlayerNotFoundException extends RuntimeException {
     public PlayerNotFoundException(UUID uuid) {
         super("Player not found: " + uuid);
     }
+
+    public PlayerNotFoundException(String discordId) {
+        super("Player not found for Discord ID: " + discordId);
+    }
 }

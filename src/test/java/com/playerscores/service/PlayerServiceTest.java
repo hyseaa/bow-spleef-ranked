@@ -43,6 +43,29 @@ class PlayerServiceTest {
     }
 
     @Test
+    void getPlayerByDiscordId_notFound_throwsException() {
+        when(playerMapper.findByDiscordId("999")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playerService.getPlayerByDiscordId("999"))
+                .isInstanceOf(PlayerNotFoundException.class);
+    }
+
+    @Test
+    void getPlayerByDiscordId_found_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player();
+        player.setUuid(uuid);
+        player.setDiscordId("123456789");
+        when(playerMapper.findByDiscordId("123456789")).thenReturn(Optional.of(player));
+        when(usernameCache.get(uuid)).thenReturn("Notch");
+
+        PlayerResponse response = playerService.getPlayerByDiscordId("123456789");
+
+        assertThat(response.uuid()).isEqualTo(uuid);
+        assertThat(response.username()).isEqualTo("Notch");
+    }
+
+    @Test
     void getPlayer_notFound_throwsException() {
         UUID uuid = UUID.randomUUID();
         when(playerMapper.findByUuid(uuid)).thenReturn(Optional.empty());

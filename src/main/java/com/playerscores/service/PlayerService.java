@@ -6,6 +6,7 @@ import com.playerscores.dto.PlayerResponse;
 import com.playerscores.exception.PlayerNotFoundException;
 import com.playerscores.mapper.LeaderboardMapper;
 import com.playerscores.mapper.PlayerMapper;
+import com.playerscores.model.Player;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,13 @@ public class PlayerService {
         playerMapper.findByUuid(uuid)
                 .orElseThrow(() -> new PlayerNotFoundException(uuid));
         return new PlayerResponse(uuid, usernameCache.get(uuid));
+    }
+
+    @Transactional(readOnly = true)
+    public PlayerResponse getPlayerByDiscordId(String discordId) {
+        Player player = playerMapper.findByDiscordId(discordId)
+                .orElseThrow(() -> new PlayerNotFoundException(discordId));
+        return new PlayerResponse(player.getUuid(), usernameCache.get(player.getUuid()));
     }
 
     @Transactional(readOnly = true)

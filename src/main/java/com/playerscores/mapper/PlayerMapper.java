@@ -23,6 +23,9 @@ public interface PlayerMapper {
     @Select("SELECT uuid, discord_id, username, username_cached_at FROM player WHERE discord_id IS NOT NULL ORDER BY uuid")
     List<Player> findVerifiedPlayers();
 
+    @Select("SELECT uuid, discord_id, username, username_cached_at FROM player WHERE discord_id = #{discordId}")
+    Optional<Player> findByDiscordId(String discordId);
+
     @Update("UPDATE player SET username = #{username}, username_cached_at = NOW() WHERE uuid = #{uuid}")
     void updateUsernameCache(@Param("uuid") UUID uuid, @Param("username") String username);
 

@@ -14,27 +14,51 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler({PlayerNotFoundException.class, MatchNotFoundException.class})
-    public ProblemDetail handleNotFound(RuntimeException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    @ExceptionHandler(PlayerNotFoundException.class)
+    public ProblemDetail handlePlayerNotFound(PlayerNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND", ex.getMessage());
     }
 
-    @ExceptionHandler(ConstraintViolationException.class)
-    public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    @ExceptionHandler(MatchNotFoundException.class)
+    public ProblemDetail handleMatchNotFound(MatchNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "MATCH_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(MojangUsernameNotFoundException.class)
+    public ProblemDetail handleMojangNotFound(MojangUsernameNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "MINECRAFT_USERNAME_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(DiscordMismatchException.class)
+    public ProblemDetail handleDiscordMismatch(DiscordMismatchException ex) {
+        ProblemDetail pd = problem(HttpStatus.UNPROCESSABLE_ENTITY, "DISCORD_MISMATCH", ex.getMessage());
+        pd.setProperty("linkedDiscordUsername", ex.getLinkedDiscordUsername());
+        return pd;
     }
 
     @ExceptionHandler(VerificationException.class)
     public ProblemDetail handleVerification(VerificationException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "DISCORD_NOT_LINKED", ex.getMessage());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
-                .collect(Collectors.toMap(FieldError::getField, f -> f.getDefaultMessage() != null ? f.getDefaultMessage() : "invalid"));
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
-        problem.setProperty("errors", errors);
-        return problem;
+                .collect(Collectors.toMap(FieldError::getField,
+                        f -> f.getDefaultMessage() != null ? f.getDefaultMessage() : "invalid"));
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Validation failed");
+        pd.setProperty("errors", errors);
+        return pd;
+    }
+
+    private static ProblemDetail problem(HttpStatus status, String code, String detail) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail);
+        pd.setProperty("code", code);
+        return pd;
     }
 }

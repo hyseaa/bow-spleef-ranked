@@ -4,6 +4,8 @@ import com.playerscores.client.HypixelClient;
 import com.playerscores.client.MojangClient;
 import com.playerscores.dto.VerifiedPlayerResponse;
 import com.playerscores.dto.VerifyRequest;
+import com.playerscores.exception.DiscordMismatchException;
+import com.playerscores.exception.MojangUsernameNotFoundException;
 import com.playerscores.exception.VerificationException;
 import com.playerscores.mapper.PlayerMapper;
 import com.playerscores.model.Player;
@@ -36,13 +38,12 @@ class VerificationServiceTest {
     private VerificationService verificationService;
 
     @Test
-    void verify_usernameNotFound_throwsException() {
+    void verify_usernameNotFound_throwsMojangNotFoundException() {
         when(mojangClient.getUuidByUsername("Unknown")).thenReturn(null);
 
         VerifyRequest req = new VerifyRequest("123", "Notch", "Unknown");
         assertThatThrownBy(() -> verificationService.verify(req))
-                .isInstanceOf(VerificationException.class)
-                .hasMessageContaining("not found");
+                .isInstanceOf(MojangUsernameNotFoundException.class);
     }
 
     @Test
@@ -58,15 +59,16 @@ class VerificationServiceTest {
     }
 
     @Test
-    void verify_discordMismatch_throwsException() {
+    void verify_discordMismatch_throwsDiscordMismatchException() {
         UUID uuid = UUID.randomUUID();
         when(mojangClient.getUuidByUsername("Notch")).thenReturn(uuid);
         when(hypixelClient.getLinkedDiscord(uuid)).thenReturn("OtherUser");
 
         VerifyRequest req = new VerifyRequest("123", "Notch", "Notch");
         assertThatThrownBy(() -> verificationService.verify(req))
-                .isInstanceOf(VerificationException.class)
-                .hasMessageContaining("does not match");
+                .isInstanceOf(DiscordMismatchException.class)
+                .extracting(e -> ((DiscordMismatchException) e).getLinkedDiscordUsername())
+                .isEqualTo("OtherUser");
     }
 
     @Test

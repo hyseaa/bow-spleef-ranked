@@ -41,6 +41,26 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "DISCORD_NOT_LINKED", ex.getMessage());
     }
 
+    @ExceptionHandler(PlayerSeasonEloNotFoundException.class)
+    public ProblemDetail handlePlayerSeasonEloNotFound(PlayerSeasonEloNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "PLAYER_SEASON_ELO_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(ActiveSeasonAlreadyExistsException.class)
+    public ProblemDetail handleActiveSeasonAlreadyExists(ActiveSeasonAlreadyExistsException ex) {
+        return problem(HttpStatus.CONFLICT, "ACTIVE_SEASON_ALREADY_EXISTS", ex.getMessage());
+    }
+
+    @ExceptionHandler(GameTypeNotFoundException.class)
+    public ProblemDetail handleGameTypeNotFound(GameTypeNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "GAME_TYPE_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(NoActiveRankedSeasonException.class)
+    public ProblemDetail handleNoActiveSeason(NoActiveRankedSeasonException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "NO_ACTIVE_RANKED_SEASON", ex.getMessage());
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());

@@ -10,4 +10,5 @@ public class Match {
     private String gameType;
     private String source;
     private OffsetDateTime playedAt;
+    private Long rankedSeasonId;
 }

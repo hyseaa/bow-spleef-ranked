@@ -5,11 +5,15 @@ import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.exception.MatchNotFoundException;
+import com.playerscores.mapper.EloMapper;
+import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
 import com.playerscores.mapper.PlayerMapper;
+import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
+import com.playerscores.model.GameType;
 import com.playerscores.model.Match;
 import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
@@ -44,6 +48,12 @@ class MatchServiceTest {
     private MatchPlayerStatMapper matchPlayerStatMapper;
     @Mock
     private PlayerMapper playerMapper;
+    @Mock
+    private EloMapper eloMapper;
+    @Mock
+    private GameTypeMapper gameTypeMapper;
+    @Mock
+    private RankedSeasonMapper rankedSeasonMapper;
     @Mock
     private UsernameCache usernameCache;
     @Spy
@@ -80,6 +90,12 @@ class MatchServiceTest {
         match.setPlayedAt(OffsetDateTime.now());
         when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
         when(teamMapper.findByMatchId(1L)).thenReturn(List.of());
+
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(gameType));
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
                 List.of(new TeamRequest(3, List.of(uuid))), null);
@@ -123,6 +139,12 @@ class MatchServiceTest {
         when(teamMapper.findByMatchId(1L)).thenReturn(List.of(team));
         when(teamPlayerMapper.findPlayerUuidsByTeamId(1L)).thenReturn(List.of(uuid));
         when(usernameCache.get(uuid)).thenReturn("Notch");
+
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(gameType));
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
                 List.of(new TeamRequest(3, List.of(uuid)),

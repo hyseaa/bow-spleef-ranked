@@ -64,10 +64,10 @@ class PlayerControllerTest {
     void getLeaderboard_returnsPage() throws Exception {
         UUID uuid = UUID.randomUUID();
         PageResponse<LeaderboardEntryResponse> page = PageResponse.of(
-                List.of(new LeaderboardEntryResponse(uuid, "Notch", 5)), 0, 20, 1);
-        when(playerService.getLeaderboard(0, 20)).thenReturn(page);
+                List.of(new LeaderboardEntryResponse(uuid, "Notch", 1200, 10, 5L, "Platinum II")), 0, 20, 1);
+        when(playerService.getLeaderboard(1L, 0, 20)).thenReturn(page);
 
-        mockMvc.perform(get("/api/v1/players/leaderboard"))
+        mockMvc.perform(get("/api/v1/players/leaderboard").param("seasonId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].username").value("Notch"))
                 .andExpect(jsonPath("$.content[0].wins").value(5))

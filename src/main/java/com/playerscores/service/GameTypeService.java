@@ -6,11 +6,13 @@ import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.model.GameType;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 public class GameTypeService {
 
@@ -24,24 +26,36 @@ public class GameTypeService {
 
     @Transactional
     public GameTypeResponse create(GameTypeRequest request) {
+        log.info("Creating game type: name={}, displayName={}, ranked={}", request.name(), request.displayName(), request.ranked());
         GameType gt = new GameType();
         gt.setName(request.name());
         gt.setDisplayName(request.displayName());
         gt.setRanked(request.ranked());
         gameTypeMapper.insert(gt);
+        log.info("Game type created: name={}", gt.getName());
         return toResponse(gt);
     }
 
     @Transactional(readOnly = true)
     public GameTypeResponse getByName(String name) {
+        log.debug("Fetching game type by name={}", name);
         return gameTypeMapper.findByName(name)
-                .map(this::toResponse)
-                .orElseThrow(() -> new GameTypeNotFoundException(name));
+                .map(gt -> {
+                    log.debug("Found game type: name={}", name);
+                    return toResponse(gt);
+                })
+                .orElseThrow(() -> {
+                    log.warn("Game type not found: name={}", name);
+                    return new GameTypeNotFoundException(name);
+                });
     }
 
     @Transactional(readOnly = true)
     public List<GameTypeResponse> getAll() {
-        return gameTypeMapper.findAll().stream().map(this::toResponse).toList();
+        log.debug("Fetching all game types");
+        List<GameTypeResponse> result = gameTypeMapper.findAll().stream().map(this::toResponse).toList();
+        log.debug("Found {} game type(s)", result.size());
+        return result;
     }
 
     private GameTypeResponse toResponse(GameType gt) {

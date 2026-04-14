@@ -20,12 +20,14 @@ import com.playerscores.mapper.PlayerStatsMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.model.Player;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PlayerService {
@@ -39,73 +41,107 @@ public class PlayerService {
 
     @Transactional
     public PlayerResponse upsertPlayer(UUID uuid) {
+        log.info("Upserting player: uuid={}", uuid);
         playerMapper.insertIfAbsent(uuid);
-        return new PlayerResponse(uuid, usernameCache.get(uuid));
+        String username = usernameCache.get(uuid);
+        log.info("Player upserted: uuid={}, username={}", uuid, username);
+        return new PlayerResponse(uuid, username);
     }
 
     @Transactional(readOnly = true)
     public PlayerResponse getPlayer(UUID uuid) {
+        log.debug("Fetching player: uuid={}", uuid);
         playerMapper.findByUuid(uuid)
-                .orElseThrow(() -> new PlayerNotFoundException(uuid));
+                .orElseThrow(() -> {
+                    log.warn("Player not found: uuid={}", uuid);
+                    return new PlayerNotFoundException(uuid);
+                });
         return new PlayerResponse(uuid, usernameCache.get(uuid));
     }
 
     @Transactional(readOnly = true)
     public PlayerResponse getPlayerByDiscordId(String discordId) {
+        log.debug("Fetching player by discordId={}", discordId);
         Player player = playerMapper.findByDiscordId(discordId)
-                .orElseThrow(() -> new PlayerNotFoundException(discordId));
+                .orElseThrow(() -> {
+                    log.warn("Player not found for discordId={}", discordId);
+                    return new PlayerNotFoundException(discordId);
+                });
         return new PlayerResponse(player.getUuid(), usernameCache.get(player.getUuid()));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<LeaderboardEntryResponse> getLeaderboard(Long rankedSeasonId, int page, int size) {
+        log.debug("Fetching ELO leaderboard: seasonId={}, page={}, size={}", rankedSeasonId, page, size);
         long total = eloMapper.countLeaderboard(rankedSeasonId);
         List<LeaderboardEntryResponse> content = eloMapper.findLeaderboard(rankedSeasonId, size, page * size)
                 .stream()
                 .map(row -> new LeaderboardEntryResponse(row.uuid(), usernameCache.get(row.uuid()), row.elo(), row.matchesPlayed(), row.wins(), row.title()))
                 .toList();
+        log.debug("Leaderboard fetched: seasonId={}, total={}, returned={}", rankedSeasonId, total, content.size());
         return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<WinsLeaderboardEntryResponse> getWinsLeaderboard(String gameType, int page, int size) {
+        log.debug("Fetching wins leaderboard: gameType={}, page={}, size={}", gameType, page, size);
         long total = leaderboardMapper.countLeaderboard(gameType);
         List<WinsLeaderboardEntryResponse> content = leaderboardMapper.findLeaderboard(gameType, size, page * size)
                 .stream()
                 .map(row -> new WinsLeaderboardEntryResponse(row.uuid(), usernameCache.get(row.uuid()), row.wins()))
                 .toList();
+        log.debug("Wins leaderboard fetched: gameType={}, total={}, returned={}", gameType, total, content.size());
         return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)
     public PlayerStatsResponse getPlayerStats(UUID uuid) {
-        playerMapper.findByUuid(uuid).orElseThrow(() -> new PlayerNotFoundException(uuid));
+        log.debug("Fetching stats for player: uuid={}", uuid);
+        playerMapper.findByUuid(uuid).orElseThrow(() -> {
+            log.warn("Player not found: uuid={}", uuid);
+            return new PlayerNotFoundException(uuid);
+        });
 
         PlayerCasualStatsRow casual = playerStatsMapper.findCasualStats(uuid);
-        return new PlayerStatsResponse(
+        PlayerStatsResponse response = new PlayerStatsResponse(
                 uuid,
                 new PlayerCasualStatsResponse(casual.matchesPlayed(), casual.wins(), casual.matchesPlayed() - casual.wins()),
                 playerStatsMapper.findActiveRankedStats(uuid)
         );
+        log.debug("Stats fetched for uuid={}: casualMatches={}, rankedSeasons={}", uuid, casual.matchesPlayed(), response.ranked().size());
+        return response;
     }
 
     @Transactional(readOnly = true)
     public PlayerSeasonEloResponse getPlayerSeasonElo(UUID uuid, Long seasonId) {
-        playerMapper.findByUuid(uuid).orElseThrow(() -> new PlayerNotFoundException(uuid));
-        rankedSeasonMapper.findById(seasonId).orElseThrow(() -> new RankedSeasonNotFoundException(seasonId));
+        log.debug("Fetching season ELO: uuid={}, seasonId={}", uuid, seasonId);
+        playerMapper.findByUuid(uuid).orElseThrow(() -> {
+            log.warn("Player not found: uuid={}", uuid);
+            return new PlayerNotFoundException(uuid);
+        });
+        rankedSeasonMapper.findById(seasonId).orElseThrow(() -> {
+            log.warn("Ranked season not found: seasonId={}", seasonId);
+            return new RankedSeasonNotFoundException(seasonId);
+        });
 
         PlayerSeasonEloRow row = playerStatsMapper.findSeasonElo(uuid, seasonId)
-                .orElseThrow(() -> new PlayerSeasonEloNotFoundException(uuid, seasonId));
+                .orElseThrow(() -> {
+                    log.warn("No ELO entry for uuid={} in seasonId={}", uuid, seasonId);
+                    return new PlayerSeasonEloNotFoundException(uuid, seasonId);
+                });
+        log.debug("Season ELO fetched: uuid={}, seasonId={}, elo={}", uuid, seasonId, row.elo());
         return new PlayerSeasonEloResponse(uuid, row.seasonId(), row.seasonName(), row.gameType(), row.elo(), row.matchesPlayed(), row.title());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<EloHistoryResponse> getEloHistory(UUID uuid, Long rankedSeasonId, int page, int size) {
+        log.debug("Fetching ELO history: uuid={}, seasonId={}, page={}, size={}", uuid, rankedSeasonId, page, size);
         long total = eloMapper.countHistoryByPlayerAndSeason(uuid, rankedSeasonId);
         List<EloHistoryResponse> content = eloMapper.findHistoryByPlayerAndSeason(uuid, rankedSeasonId, size, page * size)
                 .stream()
                 .map(h -> new EloHistoryResponse(h.getMatchId(), h.getEloBefore(), h.getEloAfter(), h.getEloChange(), h.getRecordedAt()))
                 .toList();
+        log.debug("ELO history fetched: uuid={}, seasonId={}, total={}, returned={}", uuid, rankedSeasonId, total, content.size());
         return PageResponse.of(content, page, size, total);
     }
 }

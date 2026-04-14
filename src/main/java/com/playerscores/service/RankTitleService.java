@@ -2,11 +2,13 @@ package com.playerscores.service;
 
 import com.playerscores.dto.RankTitleResponse;
 import com.playerscores.mapper.RankTitleMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 public class RankTitleService {
 
@@ -18,8 +20,11 @@ public class RankTitleService {
 
     @Transactional(readOnly = true)
     public List<RankTitleResponse> getAll() {
-        return rankTitleMapper.findAll().stream()
+        log.debug("Fetching all rank titles");
+        List<RankTitleResponse> result = rankTitleMapper.findAll().stream()
                 .map(rt -> new RankTitleResponse(rt.getMinElo(), rt.getName()))
                 .toList();
+        log.debug("Found {} rank title(s)", result.size());
+        return result;
     }
 }

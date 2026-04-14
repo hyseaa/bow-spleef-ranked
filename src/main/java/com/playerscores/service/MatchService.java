@@ -28,6 +28,7 @@ import com.playerscores.model.RankedSeason;
 import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MatchService {
@@ -55,6 +57,8 @@ public class MatchService {
 
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request) {
+        log.info("Creating match: gameType={}, teams={}", request.gameType(), request.teams().size());
+
         for (TeamRequest teamReq : request.teams()) {
             for (UUID uuid : teamReq.playerUuids()) {
                 playerMapper.insertIfAbsent(uuid);
@@ -62,12 +66,16 @@ public class MatchService {
         }
 
         GameType gameType = gameTypeMapper.findByName(request.gameType())
-                .orElseThrow(() -> new GameTypeNotFoundException(request.gameType()));
+                .orElseThrow(() -> {
+                    log.warn("Match creation failed: game type not found: {}", request.gameType());
+                    return new GameTypeNotFoundException(request.gameType());
+                });
 
         Match match = new Match();
         match.setGameType(request.gameType());
         match.setSource(request.source());
         matchMapper.insert(match);
+        log.debug("Match row inserted: id={}", match.getId());
 
         // teamId → list of player UUIDs (needed for ELO calculation)
         Map<Long, List<UUID>> teamIdToPlayers = new HashMap<>();
@@ -95,6 +103,7 @@ public class MatchService {
                     try {
                         stat.setStats(objectMapper.writeValueAsString(stats));
                     } catch (JsonProcessingException e) {
+                        log.error("Failed to serialize stats for player uuid={}: {}", uuid, e.getMessage(), e);
                         throw new IllegalArgumentException("Invalid stats for player " + uuid, e);
                     }
                     matchPlayerStatMapper.insert(stat);
@@ -105,12 +114,17 @@ public class MatchService {
 
         if (gameType.isRanked()) {
             RankedSeason season = rankedSeasonMapper.findActiveByGameType(request.gameType())
-                    .orElseThrow(NoActiveRankedSeasonException::new);
+                    .orElseThrow(() -> {
+                        log.warn("Match creation failed: no active ranked season for gameType={}", request.gameType());
+                        return new NoActiveRankedSeasonException();
+                    });
             matchMapper.updateRankedSeasonId(match.getId(), season.getId());
             match.setRankedSeasonId(season.getId());
+            log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());
             applyEloUpdates(match.getId(), season.getId(), insertedTeams, teamIdToPlayers);
         }
 
+        log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
         return getMatch(match.getId());
     }
 
@@ -128,6 +142,7 @@ public class MatchService {
         for (PlayerEloSnapshot snapshot : eloMapper.findEloByUuidsAndSeason(allUuids, seasonId)) {
             snapshots.put(snapshot.playerUuid(), snapshot);
         }
+        log.debug("Loaded ELO snapshots for {} player(s) in seasonId={}", snapshots.size(), seasonId);
 
         // Build team ELO contexts using pre-match ratings
         List<TeamEloContext> teamContexts = new ArrayList<>();
@@ -148,6 +163,7 @@ public class MatchService {
         for (Team team : teams) {
             for (UUID uuid : teamIdToPlayers.getOrDefault(team.getId(), List.of())) {
                 int newElo = eloCalculator.computeNewElo(team.getId(), teamContexts, snapshots.get(uuid));
+                log.debug("ELO update for uuid={}: {} -> {}", uuid, snapshots.get(uuid).elo(), newElo);
                 newElos.put(uuid, newElo);
             }
         }
@@ -170,11 +186,16 @@ public class MatchService {
                 eloMapper.insertHistory(history);
             }
         }
+        log.debug("ELO updates persisted for matchId={}", matchId);
     }
 
     @Transactional(readOnly = true)
     public MatchResponse getMatch(Long id) {
-        Match match = matchMapper.findById(id).orElseThrow(() -> new MatchNotFoundException(id));
+        log.debug("Fetching match: id={}", id);
+        Match match = matchMapper.findById(id).orElseThrow(() -> {
+            log.warn("Match not found: id={}", id);
+            return new MatchNotFoundException(id);
+        });
 
         List<TeamResponse> teams = teamMapper.findByMatchId(id).stream()
                 .map(team -> {
@@ -186,6 +207,7 @@ public class MatchService {
                 })
                 .toList();
 
+        log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
         return new MatchResponse(match.getId(), match.getGameType(), match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId());
     }
 }

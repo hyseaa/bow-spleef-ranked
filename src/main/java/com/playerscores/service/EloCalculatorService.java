@@ -4,10 +4,12 @@ import com.playerscores.config.EloProperties;
 import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.dto.TeamEloContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EloCalculatorService {
@@ -37,10 +39,15 @@ public class EloCalculatorService {
         TeamEloContext playerTeam = teams.stream()
                 .filter(t -> t.teamId() == playerTeamId)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Player team not found in context: " + playerTeamId));
+                .orElseThrow(() -> {
+                    log.error("Player team not found in ELO context: teamId={}", playerTeamId);
+                    return new IllegalArgumentException("Player team not found in context: " + playerTeamId);
+                });
 
         int currentElo = snapshot.elo();
         int k = kFactor(snapshot.matchesPlayed());
+        log.debug("Computing ELO for playerUuid={}: currentElo={}, matchesPlayed={}, k={}", snapshot.playerUuid(), currentElo, snapshot.matchesPlayed(), k);
+
         int cumulativeDelta = 0;
 
         for (TeamEloContext opponent : teams) {
@@ -58,9 +65,13 @@ public class EloCalculatorService {
             }
 
             double expected = 1.0 / (1.0 + Math.pow(10.0, (opponent.avgElo() - currentElo) / 400.0));
-            cumulativeDelta += (int) Math.round(k * (score - expected));
+            int delta = (int) Math.round(k * (score - expected));
+            log.debug("vs teamId={} (avgElo={}): score={}, expected={}, delta={}", opponent.teamId(), (int) opponent.avgElo(), score, expected, delta);
+            cumulativeDelta += delta;
         }
 
-        return Math.max(props.floor(), currentElo + cumulativeDelta);
+        int newElo = Math.max(props.floor(), currentElo + cumulativeDelta);
+        log.debug("New ELO for playerUuid={}: {} (delta={}, floor={})", snapshot.playerUuid(), newElo, cumulativeDelta, props.floor());
+        return newElo;
     }
 }

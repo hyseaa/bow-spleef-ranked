@@ -16,6 +16,7 @@ import com.playerscores.model.Player;
 import com.playerscores.model.QueueEntry;
 import com.playerscores.model.RankedSeason;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QueueService {
@@ -40,15 +42,24 @@ public class QueueService {
 
     @Transactional
     public QueueResponse join(String discordId, String gameType) {
+        log.info("Player joining queue: discordId={}, gameType={}", discordId, gameType);
+
         Player player = playerMapper.findByDiscordId(discordId)
-                .orElseThrow(() -> new PlayerNotFoundException(discordId));
+                .orElseThrow(() -> {
+                    log.warn("Queue join failed: player not found for discordId={}", discordId);
+                    return new PlayerNotFoundException(discordId);
+                });
 
         RankedSeason season = rankedSeasonMapper.findActiveByGameType(gameType)
-                .orElseThrow(NoActiveRankedSeasonException::new);
+                .orElseThrow(() -> {
+                    log.warn("Queue join failed: no active ranked season for gameType={}", gameType);
+                    return new NoActiveRankedSeasonException();
+                });
 
         int elo = playerStatsMapper.findSeasonElo(player.getUuid(), season.getId())
                 .map(PlayerSeasonEloRow::elo)
                 .orElse(DEFAULT_ELO);
+        log.debug("Player uuid={} queuing with elo={} (seasonId={})", player.getUuid(), elo, season.getId());
 
         QueueEntry entry = new QueueEntry();
         entry.setPlayerUuid(player.getUuid());
@@ -63,6 +74,8 @@ public class QueueService {
 
         if (opponent.isPresent()) {
             QueueEntry opp = opponent.get();
+            log.info("Match found: uuid={} (elo={}) vs uuid={} (elo={}), gameType={}",
+                    player.getUuid(), elo, opp.getPlayerUuid(), opp.getElo(), gameType);
             queueMapper.delete(player.getUuid(), gameType);
             queueMapper.delete(opp.getPlayerUuid(), gameType);
 
@@ -70,16 +83,18 @@ public class QueueService {
                     new QueuedPlayerInfo(opp.getPlayerUuid(), usernameCache.get(opp.getPlayerUuid()), opp.getElo()));
         }
 
+        log.info("No match found yet for uuid={} (elo={}), staying in queue", player.getUuid(), elo);
         return new QueueResponse(false, null);
     }
 
     @Transactional(readOnly = true)
     public List<QueueByGameTypeResponse> listQueue() {
+        log.debug("Listing all queued players");
         Map<String, List<QueueEntry>> byGameType = queueMapper.findAll()
                 .stream()
                 .collect(Collectors.groupingBy(QueueEntry::getGameType));
 
-        return byGameType.entrySet().stream()
+        List<QueueByGameTypeResponse> result = byGameType.entrySet().stream()
                 .map(e -> {
                     String gameType = e.getKey();
                     String displayName = gameTypeMapper.findByName(gameType)
@@ -91,12 +106,20 @@ public class QueueService {
                     return new QueueByGameTypeResponse(gameType, displayName, players);
                 })
                 .toList();
+        log.debug("Queue listed: {} game type(s), {} total player(s)",
+                result.size(), result.stream().mapToInt(r -> r.players().size()).sum());
+        return result;
     }
 
     @Transactional
     public void leave(String discordId, String gameType) {
+        log.info("Player leaving queue: discordId={}, gameType={}", discordId, gameType);
         Player player = playerMapper.findByDiscordId(discordId)
-                .orElseThrow(() -> new PlayerNotFoundException(discordId));
+                .orElseThrow(() -> {
+                    log.warn("Queue leave failed: player not found for discordId={}", discordId);
+                    return new PlayerNotFoundException(discordId);
+                });
         queueMapper.delete(player.getUuid(), gameType);
+        log.info("Player removed from queue: uuid={}, gameType={}", player.getUuid(), gameType);
     }
 }

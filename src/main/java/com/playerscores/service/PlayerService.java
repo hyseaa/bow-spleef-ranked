@@ -83,6 +83,7 @@ public class PlayerService {
 
         PlayerCasualStatsRow casual = playerStatsMapper.findCasualStats(uuid);
         return new PlayerStatsResponse(
+                uuid,
                 new PlayerCasualStatsResponse(casual.matchesPlayed(), casual.wins(), casual.matchesPlayed() - casual.wins()),
                 playerStatsMapper.findActiveRankedStats(uuid)
         );

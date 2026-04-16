@@ -1,6 +1,7 @@
 package com.playerscores.mapper;
 
 import com.playerscores.model.Match;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -29,4 +30,7 @@ public interface MatchMapper {
 
     @Select("SELECT COUNT(*) FROM match WHERE game_type = #{gameType}")
     long countByGameType(@Param("gameType") String gameType);
+
+    @Delete("DELETE FROM match WHERE id = #{id}")
+    int deleteById(Long id);
 }

@@ -2,6 +2,7 @@ package com.playerscores.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
@@ -55,6 +56,7 @@ public class MatchService {
     private final ObjectMapper objectMapper;
     private final GameTypeMapper gameTypeMapper;
     private final RankedSeasonMapper rankedSeasonMapper;
+    private final MatchWebhookClient matchWebhookClient;
 
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request) {
@@ -126,7 +128,9 @@ public class MatchService {
         }
 
         log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
-        return getMatch(match.getId());
+        MatchResponse response = getMatch(match.getId());
+        matchWebhookClient.notifyMatchResult(response);
+        return response;
     }
 
     private void applyEloUpdates(Long matchId, Long seasonId, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
@@ -224,7 +228,22 @@ public class MatchService {
                 })
                 .toList();
 
+        String displayName = gameTypeMapper.findByName(match.getGameType())
+                .map(GameType::getDisplayName)
+                .orElse(match.getGameType());
+
         log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
-        return new MatchResponse(match.getId(), match.getGameType(), match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId());
+        return new MatchResponse(match.getId(), match.getGameType(), displayName, match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId());
+    }
+
+    @Transactional
+    public void deleteMatch(Long id) {
+        log.info("Deleting match: id={}", id);
+        int deleted = matchMapper.deleteById(id);
+        if (deleted == 0) {
+            log.warn("Match not found for deletion: id={}", id);
+            throw new MatchNotFoundException(id);
+        }
+        log.info("Match deleted: id={}", id);
     }
 }

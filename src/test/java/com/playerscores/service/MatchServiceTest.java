@@ -1,6 +1,7 @@
 package com.playerscores.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
@@ -58,6 +59,8 @@ class MatchServiceTest {
     private RankedSeasonMapper rankedSeasonMapper;
     @Mock
     private UsernameCache usernameCache;
+    @Mock
+    private MatchWebhookClient matchWebhookClient;
     @Spy
     private ObjectMapper objectMapper;
 
@@ -199,5 +202,20 @@ class MatchServiceTest {
 
         assertThatThrownBy(() -> matchService.getMatchesByGameType("UNKNOWN", 0, 20))
                 .isInstanceOf(GameTypeNotFoundException.class);
+    }
+
+    @Test
+    void deleteMatch_success() {
+        when(matchMapper.deleteById(1L)).thenReturn(1);
+
+        matchService.deleteMatch(1L);
+    }
+
+    @Test
+    void deleteMatch_notFound_throwsException() {
+        when(matchMapper.deleteById(99L)).thenReturn(0);
+
+        assertThatThrownBy(() -> matchService.deleteMatch(99L))
+                .isInstanceOf(MatchNotFoundException.class);
     }
 }

@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,5 +61,14 @@ public class MatchController {
         MatchResponse response = matchService.getMatch(id);
         log.info("Call to API: GET /api/v1/matches/{} completed", id);
         return response;
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a match by ID")
+    public void deleteMatch(@PathVariable Long id) {
+        log.info("Call to API: DELETE /api/v1/matches/{} with parameters: id={}", id, id);
+        matchService.deleteMatch(id);
+        log.info("Call to API: DELETE /api/v1/matches/{} completed", id);
     }
 }

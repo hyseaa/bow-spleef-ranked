@@ -22,7 +22,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,7 +45,7 @@ class MatchControllerTest {
 
     @Test
     void createMatch_returns201() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse response = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
         when(matchService.createMatch(any())).thenReturn(response);
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
@@ -59,7 +62,7 @@ class MatchControllerTest {
 
     @Test
     void getMatch_found_returns200() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "SKYWARS", "FRONT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse response = new MatchResponse(1L, "SKYWARS", "Sky Wars", "FRONT", OffsetDateTime.now(), List.of(), null);
         when(matchService.getMatch(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/matches/1"))
@@ -77,7 +80,7 @@ class MatchControllerTest {
 
     @Test
     void getMatchesByGameType_returns200() throws Exception {
-        MatchResponse match = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse match = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
         MatchListResponse response = MatchListResponse.of("BEDWARS", "Bed Wars", List.of(match), 0, 20, 1L);
         when(matchService.getMatchesByGameType("BEDWARS", 0, 20)).thenReturn(response);
 
@@ -100,6 +103,22 @@ class MatchControllerTest {
         when(matchService.getMatchesByGameType("UNKNOWN", 0, 20)).thenThrow(new GameTypeNotFoundException("UNKNOWN"));
 
         mockMvc.perform(get("/api/v1/matches").param("gameType", "UNKNOWN"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteMatch_returns204() throws Exception {
+        doNothing().when(matchService).deleteMatch(1L);
+
+        mockMvc.perform(delete("/api/v1/matches/1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void deleteMatch_notFound_returns404() throws Exception {
+        doThrow(new MatchNotFoundException(99L)).when(matchService).deleteMatch(99L);
+
+        mockMvc.perform(delete("/api/v1/matches/99"))
                 .andExpect(status().isNotFound());
     }
 }

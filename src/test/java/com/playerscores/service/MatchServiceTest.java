@@ -2,8 +2,10 @@ package com.playerscores.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
+import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.GameTypeMapper;
@@ -163,5 +165,39 @@ class MatchServiceTest {
 
         assertThatThrownBy(() -> matchService.getMatch(99L))
                 .isInstanceOf(MatchNotFoundException.class);
+    }
+
+    @Test
+    void getMatchesByGameType_returnsPage() {
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(gameType));
+
+        Match match = new Match();
+        match.setId(1L);
+        match.setGameType("BEDWARS");
+        match.setSource("DISCORD_BOT");
+        match.setPlayedAt(OffsetDateTime.now());
+        when(matchMapper.countByGameType("BEDWARS")).thenReturn(1L);
+        when(matchMapper.findByGameType("BEDWARS", 20, 0)).thenReturn(List.of(match));
+        when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
+        when(teamMapper.findByMatchId(1L)).thenReturn(List.of());
+
+        MatchListResponse response = matchService.getMatchesByGameType("BEDWARS", 0, 20);
+
+        assertThat(response.gameType()).isEqualTo("BEDWARS");
+        assertThat(response.gameTypeDisplayName()).isEqualTo("Bed Wars");
+        assertThat(response.total()).isEqualTo(1L);
+        assertThat(response.content()).hasSize(1);
+    }
+
+    @Test
+    void getMatchesByGameType_unknownGameType_throwsException() {
+        when(gameTypeMapper.findByName("UNKNOWN")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> matchService.getMatchesByGameType("UNKNOWN", 0, 20))
+                .isInstanceOf(GameTypeNotFoundException.class);
     }
 }

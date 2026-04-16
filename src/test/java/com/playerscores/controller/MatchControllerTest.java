@@ -2,8 +2,10 @@ package com.playerscores.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
+import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.service.MatchService;
 import org.junit.jupiter.api.Test;
@@ -70,6 +72,34 @@ class MatchControllerTest {
         when(matchService.getMatch(99L)).thenThrow(new MatchNotFoundException(99L));
 
         mockMvc.perform(get("/api/v1/matches/99"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getMatchesByGameType_returns200() throws Exception {
+        MatchResponse match = new MatchResponse(1L, "BEDWARS", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
+        MatchListResponse response = MatchListResponse.of("BEDWARS", "Bed Wars", List.of(match), 0, 20, 1L);
+        when(matchService.getMatchesByGameType("BEDWARS", 0, 20)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameType").value("BEDWARS"))
+                .andExpect(jsonPath("$.gameTypeDisplayName").value("Bed Wars"))
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(1));
+    }
+
+    @Test
+    void getMatchesByGameType_missingGameType_returns400() throws Exception {
+        mockMvc.perform(get("/api/v1/matches"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getMatchesByGameType_unknownGameType_returns404() throws Exception {
+        when(matchService.getMatchesByGameType("UNKNOWN", 0, 20)).thenThrow(new GameTypeNotFoundException("UNKNOWN"));
+
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "UNKNOWN"))
                 .andExpect(status().isNotFound());
     }
 }

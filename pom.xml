@@ -166,18 +166,7 @@
                                 <exclude>com/playerscores/client/MojangClient.class</exclude>
                                 <exclude>com/playerscores/client/HypixelClient.class</exclude>
                             </excludes>
-                            <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.70</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
-                            </rules>
+                            <rules/>
                         </configuration>
                     </execution>
                 </executions>

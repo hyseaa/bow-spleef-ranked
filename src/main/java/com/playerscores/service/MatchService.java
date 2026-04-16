@@ -3,6 +3,7 @@ package com.playerscores.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.dto.PlayerSummaryResponse;
@@ -187,6 +188,22 @@ public class MatchService {
             }
         }
         log.debug("ELO updates persisted for matchId={}", matchId);
+    }
+
+    @Transactional(readOnly = true)
+    public MatchListResponse getMatchesByGameType(String gameType, int page, int size) {
+        log.debug("Fetching matches by gameType: gameType={}, page={}, size={}", gameType, page, size);
+        GameType gt = gameTypeMapper.findByName(gameType).orElseThrow(() -> {
+            log.warn("Game type not found: {}", gameType);
+            return new GameTypeNotFoundException(gameType);
+        });
+        long total = matchMapper.countByGameType(gameType);
+        List<MatchResponse> content = matchMapper.findByGameType(gameType, size, page * size)
+                .stream()
+                .map(match -> getMatch(match.getId()))
+                .toList();
+        log.debug("Matches fetched: gameType={}, total={}, returned={}", gameType, total, content.size());
+        return MatchListResponse.of(gameType, gt.getDisplayName(), content, page, size, total);
     }
 
     @Transactional(readOnly = true)

@@ -1,15 +1,22 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.config.EloProperties;
 import com.playerscores.dto.PlayerEloSnapshot;
+import com.playerscores.dto.PlayerRankEntry;
+import com.playerscores.dto.RankSnapshotPayload;
 import com.playerscores.dto.TeamEloContext;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.MatchMapper;
+import com.playerscores.mapper.PlayerMapper;
+import com.playerscores.mapper.RankTitleMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
 import com.playerscores.model.EloHistory;
 import com.playerscores.model.Match;
+import com.playerscores.model.Player;
+import com.playerscores.model.RankTitle;
 import com.playerscores.model.Team;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +42,9 @@ public class EloRecomputeService {
     private final TeamPlayerMapper teamPlayerMapper;
     private final RankedSeasonMapper rankedSeasonMapper;
     private final EloProperties eloProperties;
+    private final PlayerMapper playerMapper;
+    private final RankTitleMapper rankTitleMapper;
+    private final MatchWebhookClient matchWebhookClient;
 
     public void applyEloUpdates(Long matchId, Long seasonId, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
         for (List<UUID> uuids : teamIdToPlayers.values()) {
@@ -111,8 +122,46 @@ public class EloRecomputeService {
             }
             applyEloUpdates(match.getId(), seasonId, teams, teamIdToPlayers);
         }
+        List<UUID> zeroMatchUuids = eloMapper.findUuidsWithNoMatches(seasonId);
         eloMapper.deletePlayersWithNoMatches(seasonId);
         log.info("ELO recompute complete for seasonId={}, {} match(es) replayed", seasonId, matches.size());
+
+        RankSnapshotPayload snapshot = buildRankSnapshot(seasonId, zeroMatchUuids);
+        matchWebhookClient.notifyRanksUpdated(snapshot);
+    }
+
+    private RankSnapshotPayload buildRankSnapshot(Long seasonId, List<UUID> zeroMatchUuids) {
+        List<RankTitle> titles = rankTitleMapper.findAll();
+
+        List<PlayerEloSnapshot> activeSnapshots = eloMapper.findAllEloBySeasonId(seasonId);
+        List<UUID> allUuids = new ArrayList<>();
+        activeSnapshots.forEach(s -> allUuids.add(s.playerUuid()));
+        allUuids.addAll(zeroMatchUuids);
+
+        Map<UUID, String> discordIds = playerMapper.findByUuids(allUuids).stream()
+                .filter(p -> p.getDiscordId() != null)
+                .collect(Collectors.toMap(Player::getUuid, Player::getDiscordId));
+
+        Map<UUID, Integer> eloByUuid = activeSnapshots.stream()
+                .collect(Collectors.toMap(PlayerEloSnapshot::playerUuid, PlayerEloSnapshot::elo));
+
+        List<PlayerRankEntry> playerRanks = new ArrayList<>();
+        for (Map.Entry<UUID, String> entry : discordIds.entrySet()) {
+            Integer elo = eloByUuid.get(entry.getKey());
+            String title = elo != null ? resolveTitle(elo, titles) : null;
+            playerRanks.add(new PlayerRankEntry(entry.getValue(), title));
+        }
+        return new RankSnapshotPayload("RANKS_UPDATED", seasonId, playerRanks);
+    }
+
+    private String resolveTitle(int elo, List<RankTitle> titles) {
+        String result = null;
+        for (RankTitle t : titles) {
+            if (elo >= t.getMinElo()) {
+                result = t.getName();
+            }
+        }
+        return result;
     }
 
 }

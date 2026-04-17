@@ -79,6 +79,12 @@ public interface EloMapper {
     @Update("UPDATE player_season_elo SET elo = #{startingElo}, matches_played = 0 WHERE ranked_season_id = #{seasonId}")
     void resetPlayerSeasonElos(@Param("seasonId") Long seasonId, @Param("startingElo") int startingElo);
 
+    @Select("SELECT player_uuid, elo, matches_played FROM player_season_elo WHERE ranked_season_id = #{seasonId}")
+    List<PlayerEloSnapshot> findAllEloBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Select("SELECT player_uuid FROM player_season_elo WHERE ranked_season_id = #{seasonId} AND matches_played = 0")
+    List<UUID> findUuidsWithNoMatches(@Param("seasonId") Long seasonId);
+
     @Delete("DELETE FROM player_season_elo WHERE ranked_season_id = #{seasonId} AND matches_played = 0")
     void deletePlayersWithNoMatches(@Param("seasonId") Long seasonId);
 }

@@ -1,8 +1,11 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.config.EloProperties;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.MatchMapper;
+import com.playerscores.mapper.PlayerMapper;
+import com.playerscores.mapper.RankTitleMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
@@ -17,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -40,6 +44,12 @@ class EloRecomputeServiceTest {
     private RankedSeasonMapper rankedSeasonMapper;
     @Mock
     private EloProperties eloProperties;
+    @Mock
+    private PlayerMapper playerMapper;
+    @Mock
+    private RankTitleMapper rankTitleMapper;
+    @Mock
+    private MatchWebhookClient matchWebhookClient;
 
     @InjectMocks
     private EloRecomputeService eloRecomputeService;
@@ -57,6 +67,10 @@ class EloRecomputeServiceTest {
         team.setScore(3);
         when(teamMapper.findByMatchId(anyLong())).thenReturn(List.of(team));
         when(teamPlayerMapper.findPlayerUuidsByTeamId(1L)).thenReturn(List.of());
+        when(eloMapper.findUuidsWithNoMatches(10L)).thenReturn(List.of());
+        when(eloMapper.findAllEloBySeasonId(10L)).thenReturn(List.of());
+        when(rankTitleMapper.findAll()).thenReturn(List.of());
+        when(playerMapper.findByUuids(any())).thenReturn(List.of());
 
         eloRecomputeService.recomputeSeasonElo(10L);
 
@@ -70,6 +84,10 @@ class EloRecomputeServiceTest {
     void recomputeSeasonElo_noMatches_onlyResets() {
         when(eloProperties.startingElo()).thenReturn(1000);
         when(matchMapper.findByRankedSeasonId(5L)).thenReturn(List.of());
+        when(eloMapper.findUuidsWithNoMatches(5L)).thenReturn(List.of());
+        when(eloMapper.findAllEloBySeasonId(5L)).thenReturn(List.of());
+        when(rankTitleMapper.findAll()).thenReturn(List.of());
+        when(playerMapper.findByUuids(any())).thenReturn(List.of());
 
         eloRecomputeService.recomputeSeasonElo(5L);
 

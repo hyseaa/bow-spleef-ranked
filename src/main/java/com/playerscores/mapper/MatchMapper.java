@@ -33,4 +33,7 @@ public interface MatchMapper {
 
     @Delete("DELETE FROM match WHERE id = #{id}")
     int deleteById(Long id);
+
+    @Select("SELECT id, game_type, source, played_at, ranked_season_id FROM match WHERE ranked_season_id = #{seasonId} ORDER BY played_at ASC, id ASC")
+    List<Match> findByRankedSeasonId(@Param("seasonId") Long seasonId);
 }

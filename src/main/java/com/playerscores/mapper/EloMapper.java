@@ -3,6 +3,7 @@ package com.playerscores.mapper;
 import com.playerscores.dto.LeaderboardRow;
 import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.model.EloHistory;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -71,4 +72,13 @@ public interface EloMapper {
 
     @Select("SELECT COUNT(*) FROM player_season_elo WHERE ranked_season_id = #{rankedSeasonId}")
     long countLeaderboard(@Param("rankedSeasonId") Long rankedSeasonId);
+
+    @Delete("DELETE FROM elo_history WHERE ranked_season_id = #{seasonId}")
+    void deleteHistoryBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Update("UPDATE player_season_elo SET elo = #{startingElo}, matches_played = 0 WHERE ranked_season_id = #{seasonId}")
+    void resetPlayerSeasonElos(@Param("seasonId") Long seasonId, @Param("startingElo") int startingElo);
+
+    @Delete("DELETE FROM player_season_elo WHERE ranked_season_id = #{seasonId} AND matches_played = 0")
+    void deletePlayersWithNoMatches(@Param("seasonId") Long seasonId);
 }

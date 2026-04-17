@@ -12,4 +12,5 @@ public class RankedSeason {
     private OffsetDateTime endsAt;
     private String gameType;
     private boolean active;
+    private boolean eloDirty;
 }

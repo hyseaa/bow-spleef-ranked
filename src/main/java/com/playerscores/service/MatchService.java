@@ -6,15 +6,12 @@ import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
-import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.dto.PlayerSummaryResponse;
-import com.playerscores.dto.TeamEloContext;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.dto.TeamResponse;
 import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.exception.NoActiveRankedSeasonException;
-import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
@@ -22,7 +19,6 @@ import com.playerscores.mapper.PlayerMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
-import com.playerscores.model.EloHistory;
 import com.playerscores.model.GameType;
 import com.playerscores.model.Match;
 import com.playerscores.model.MatchPlayerStat;
@@ -50,8 +46,7 @@ public class MatchService {
     private final TeamPlayerMapper teamPlayerMapper;
     private final MatchPlayerStatMapper matchPlayerStatMapper;
     private final PlayerMapper playerMapper;
-    private final EloMapper eloMapper;
-    private final EloCalculatorService eloCalculator;
+    private final EloRecomputeService eloRecomputeService;
     private final UsernameCache usernameCache;
     private final ObjectMapper objectMapper;
     private final GameTypeMapper gameTypeMapper;
@@ -124,74 +119,13 @@ public class MatchService {
             matchMapper.updateRankedSeasonId(match.getId(), season.getId());
             match.setRankedSeasonId(season.getId());
             log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());
-            applyEloUpdates(match.getId(), season.getId(), insertedTeams, teamIdToPlayers);
+            eloRecomputeService.applyEloUpdates(match.getId(), season.getId(), insertedTeams, teamIdToPlayers);
         }
 
         log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
         MatchResponse response = getMatch(match.getId());
         matchWebhookClient.notifyMatchResult(response);
         return response;
-    }
-
-    private void applyEloUpdates(Long matchId, Long seasonId, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
-        // Ensure each player has a season ELO row (1000 by default)
-        for (List<UUID> uuids : teamIdToPlayers.values()) {
-            for (UUID uuid : uuids) {
-                eloMapper.upsertPlayerSeasonElo(uuid, seasonId);
-            }
-        }
-
-        // Load pre-match snapshots for all players
-        List<UUID> allUuids = teamIdToPlayers.values().stream().flatMap(List::stream).toList();
-        Map<UUID, PlayerEloSnapshot> snapshots = new HashMap<>();
-        for (PlayerEloSnapshot snapshot : eloMapper.findEloByUuidsAndSeason(allUuids, seasonId)) {
-            snapshots.put(snapshot.playerUuid(), snapshot);
-        }
-        log.debug("Loaded ELO snapshots for {} player(s) in seasonId={}", snapshots.size(), seasonId);
-
-        // Build team ELO contexts using pre-match ratings
-        List<TeamEloContext> teamContexts = new ArrayList<>();
-        for (Team team : teams) {
-            List<UUID> members = teamIdToPlayers.getOrDefault(team.getId(), List.of());
-            if (members.isEmpty()) {
-                continue;
-            }
-            double avgElo = members.stream()
-                    .mapToInt(uuid -> snapshots.get(uuid).elo())
-                    .average()
-                    .orElse(1000.0);
-            teamContexts.add(new TeamEloContext(team.getId(), team.getScore(), avgElo));
-        }
-
-        // Compute all new ELOs from pre-match snapshots (no DB reads in this loop)
-        Map<UUID, Integer> newElos = new HashMap<>();
-        for (Team team : teams) {
-            for (UUID uuid : teamIdToPlayers.getOrDefault(team.getId(), List.of())) {
-                int newElo = eloCalculator.computeNewElo(team.getId(), teamContexts, snapshots.get(uuid));
-                log.debug("ELO update for uuid={}: {} -> {}", uuid, snapshots.get(uuid).elo(), newElo);
-                newElos.put(uuid, newElo);
-            }
-        }
-
-        // Persist new ELOs and history
-        for (Team team : teams) {
-            for (UUID uuid : teamIdToPlayers.getOrDefault(team.getId(), List.of())) {
-                int newElo = newElos.get(uuid);
-                PlayerEloSnapshot snapshot = snapshots.get(uuid);
-
-                eloMapper.updateElo(uuid, seasonId, newElo);
-
-                EloHistory history = new EloHistory();
-                history.setPlayerUuid(uuid);
-                history.setMatchId(matchId);
-                history.setRankedSeasonId(seasonId);
-                history.setEloBefore(snapshot.elo());
-                history.setEloAfter(newElo);
-                history.setEloChange(newElo - snapshot.elo());
-                eloMapper.insertHistory(history);
-            }
-        }
-        log.debug("ELO updates persisted for matchId={}", matchId);
     }
 
     @Transactional(readOnly = true)
@@ -239,11 +173,15 @@ public class MatchService {
     @Transactional
     public void deleteMatch(Long id) {
         log.info("Deleting match: id={}", id);
-        int deleted = matchMapper.deleteById(id);
-        if (deleted == 0) {
+        Match match = matchMapper.findById(id).orElseThrow(() -> {
             log.warn("Match not found for deletion: id={}", id);
-            throw new MatchNotFoundException(id);
+            return new MatchNotFoundException(id);
+        });
+        matchMapper.deleteById(id);
+        if (match.getRankedSeasonId() != null) {
+            rankedSeasonMapper.markEloDirty(match.getRankedSeasonId());
+            log.debug("Season marked dirty for ELO recompute: seasonId={}", match.getRankedSeasonId());
         }
-        log.info("Match deleted: id={}", id);
+        log.info("Match deleted: id={}, ranked={}", id, match.getRankedSeasonId() != null);
     }
 }

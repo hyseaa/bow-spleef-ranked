@@ -8,7 +8,6 @@ import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.MatchNotFoundException;
-import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
@@ -36,6 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,7 +53,7 @@ class MatchServiceTest {
     @Mock
     private PlayerMapper playerMapper;
     @Mock
-    private EloMapper eloMapper;
+    private EloRecomputeService eloRecomputeService;
     @Mock
     private GameTypeMapper gameTypeMapper;
     @Mock
@@ -205,15 +206,36 @@ class MatchServiceTest {
     }
 
     @Test
-    void deleteMatch_success() {
-        when(matchMapper.deleteById(1L)).thenReturn(1);
+    void deleteMatch_ranked_marksDirty() {
+        Match match = new Match();
+        match.setId(1L);
+        match.setGameType("BEDWARS");
+        match.setRankedSeasonId(10L);
+        when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
 
         matchService.deleteMatch(1L);
+
+        verify(matchMapper).deleteById(1L);
+        verify(rankedSeasonMapper).markEloDirty(10L);
+    }
+
+    @Test
+    void deleteMatch_casual_doesNotMarkDirty() {
+        Match match = new Match();
+        match.setId(2L);
+        match.setGameType("BEDWARS");
+        match.setRankedSeasonId(null);
+        when(matchMapper.findById(2L)).thenReturn(Optional.of(match));
+
+        matchService.deleteMatch(2L);
+
+        verify(matchMapper).deleteById(2L);
+        verify(rankedSeasonMapper, never()).markEloDirty(any());
     }
 
     @Test
     void deleteMatch_notFound_throwsException() {
-        when(matchMapper.deleteById(99L)).thenReturn(0);
+        when(matchMapper.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> matchService.deleteMatch(99L))
                 .isInstanceOf(MatchNotFoundException.class);

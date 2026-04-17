@@ -3,25 +3,24 @@ package com.playerscores.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.client.MatchWebhookClient;
-import com.playerscores.dto.CreateMatchRequest;
-import com.playerscores.dto.MatchListResponse;
-import com.playerscores.dto.MatchResponse;
-import com.playerscores.dto.PlayerSummaryResponse;
-import com.playerscores.dto.TeamRequest;
-import com.playerscores.dto.TeamResponse;
+import com.playerscores.dto.*;
 import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.exception.NoActiveRankedSeasonException;
+import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
 import com.playerscores.mapper.PlayerMapper;
+import com.playerscores.mapper.RankTitleMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
 import com.playerscores.model.GameType;
 import com.playerscores.model.Match;
 import com.playerscores.model.MatchPlayerStat;
+import com.playerscores.model.Player;
+import com.playerscores.model.RankTitle;
 import com.playerscores.model.RankedSeason;
 import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
@@ -35,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -47,6 +47,8 @@ public class MatchService {
     private final MatchPlayerStatMapper matchPlayerStatMapper;
     private final PlayerMapper playerMapper;
     private final EloRecomputeService eloRecomputeService;
+    private final EloMapper eloMapper;
+    private final RankTitleMapper rankTitleMapper;
     private final UsernameCache usernameCache;
     private final ObjectMapper objectMapper;
     private final GameTypeMapper gameTypeMapper;
@@ -124,7 +126,9 @@ public class MatchService {
 
         log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
         MatchResponse response = getMatch(match.getId());
-        matchWebhookClient.notifyMatchResult(response);
+        List<UUID> allUuids = teamIdToPlayers.values().stream().flatMap(List::stream).toList();
+        List<PlayerRankEntry> playerRanks = buildPlayerRanks(allUuids, match.getRankedSeasonId());
+        matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks));
         return response;
     }
 
@@ -168,6 +172,43 @@ public class MatchService {
 
         log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
         return new MatchResponse(match.getId(), match.getGameType(), displayName, match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId());
+    }
+
+    private List<PlayerRankEntry> buildPlayerRanks(List<UUID> uuids, Long rankedSeasonId) {
+        if (rankedSeasonId == null || uuids.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> discordIds = playerMapper.findByUuids(uuids).stream()
+                .filter(p -> p.getDiscordId() != null)
+                .collect(Collectors.toMap(Player::getUuid, Player::getDiscordId));
+        if (discordIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Integer> eloByUuid = eloMapper.findEloByUuidsAndSeason(uuids, rankedSeasonId).stream()
+                .collect(Collectors.toMap(PlayerEloSnapshot::playerUuid, PlayerEloSnapshot::elo));
+        List<RankTitle> titles = rankTitleMapper.findAll();
+        List<PlayerRankEntry> ranks = new ArrayList<>();
+        for (Map.Entry<UUID, String> entry : discordIds.entrySet()) {
+            Integer elo = eloByUuid.get(entry.getKey());
+            if (elo == null) {
+                continue;
+            }
+            String title = resolveTitle(elo, titles);
+            if (title != null) {
+                ranks.add(new PlayerRankEntry(entry.getValue(), title));
+            }
+        }
+        return ranks;
+    }
+
+    private String resolveTitle(int elo, List<RankTitle> titles) {
+        String result = null;
+        for (RankTitle t : titles) {
+            if (elo >= t.getMinElo()) {
+                result = t.getName();
+            }
+        }
+        return result;
     }
 
     @Transactional

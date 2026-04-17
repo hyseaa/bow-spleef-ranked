@@ -20,6 +20,15 @@ public interface PlayerMapper {
     @Select("SELECT uuid, discord_id, username, username_cached_at FROM player WHERE uuid = #{uuid}")
     Optional<Player> findByUuid(UUID uuid);
 
+    @Select({
+        "<script>",
+        "SELECT uuid, discord_id, username, username_cached_at FROM player",
+        "WHERE uuid IN",
+        "<foreach item='uuid' collection='uuids' open='(' separator=',' close=')'>#{uuid}</foreach>",
+        "</script>"
+    })
+    List<Player> findByUuids(@Param("uuids") List<UUID> uuids);
+
     @Select("SELECT uuid, discord_id, username, username_cached_at FROM player WHERE discord_id IS NOT NULL ORDER BY uuid")
     List<Player> findVerifiedPlayers();
 

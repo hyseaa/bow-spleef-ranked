@@ -1,5 +1,12 @@
 package com.playerscores.dto;
 
+import lombok.Data;
+
 import java.util.UUID;
 
-public record PlayerEloSnapshot(UUID playerUuid, int elo, int matchesPlayed) {}
+@Data
+public class PlayerEloSnapshot {
+    private UUID playerUuid;
+    private int elo;
+    private int matchesPlayed;
+}

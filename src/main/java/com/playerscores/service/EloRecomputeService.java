@@ -56,7 +56,7 @@ public class EloRecomputeService {
         List<UUID> allUuids = teamIdToPlayers.values().stream().flatMap(List::stream).toList();
         Map<UUID, PlayerEloSnapshot> snapshots = new HashMap<>();
         for (PlayerEloSnapshot snapshot : eloMapper.findEloByUuidsAndSeason(allUuids, seasonId)) {
-            snapshots.put(snapshot.playerUuid(), snapshot);
+            snapshots.put(snapshot.getPlayerUuid(), snapshot);
         }
         log.debug("Loaded ELO snapshots for {} player(s) in seasonId={}", snapshots.size(), seasonId);
 
@@ -67,7 +67,7 @@ public class EloRecomputeService {
                 continue;
             }
             double avgElo = members.stream()
-                    .mapToInt(uuid -> snapshots.get(uuid).elo())
+                    .mapToInt(uuid -> snapshots.get(uuid).getElo())
                     .average()
                     .orElse(1000.0);
             teamContexts.add(new TeamEloContext(team.getId(), team.getScore(), avgElo));
@@ -77,7 +77,7 @@ public class EloRecomputeService {
         for (Team team : teams) {
             for (UUID uuid : teamIdToPlayers.getOrDefault(team.getId(), List.of())) {
                 int newElo = eloCalculator.computeNewElo(team.getId(), teamContexts, snapshots.get(uuid));
-                log.debug("ELO update for uuid={}: {} -> {}", uuid, snapshots.get(uuid).elo(), newElo);
+                log.debug("ELO update for uuid={}: {} -> {}", uuid, snapshots.get(uuid).getElo(), newElo);
                 newElos.put(uuid, newElo);
             }
         }
@@ -93,9 +93,9 @@ public class EloRecomputeService {
                 history.setPlayerUuid(uuid);
                 history.setMatchId(matchId);
                 history.setRankedSeasonId(seasonId);
-                history.setEloBefore(snapshot.elo());
+                history.setEloBefore(snapshot.getElo());
                 history.setEloAfter(newElo);
-                history.setEloChange(newElo - snapshot.elo());
+                history.setEloChange(newElo - snapshot.getElo());
                 eloMapper.insertHistory(history);
             }
         }
@@ -135,7 +135,7 @@ public class EloRecomputeService {
 
         List<PlayerEloSnapshot> activeSnapshots = eloMapper.findAllEloBySeasonId(seasonId);
         List<UUID> allUuids = new ArrayList<>();
-        activeSnapshots.forEach(s -> allUuids.add(s.playerUuid()));
+        activeSnapshots.forEach(s -> allUuids.add(s.getPlayerUuid()));
         allUuids.addAll(zeroMatchUuids);
 
         Map<UUID, String> discordIds = playerMapper.findByUuids(allUuids).stream()
@@ -143,7 +143,7 @@ public class EloRecomputeService {
                 .collect(Collectors.toMap(Player::getUuid, Player::getDiscordId));
 
         Map<UUID, Integer> eloByUuid = activeSnapshots.stream()
-                .collect(Collectors.toMap(PlayerEloSnapshot::playerUuid, PlayerEloSnapshot::elo));
+                .collect(Collectors.toMap(PlayerEloSnapshot::getPlayerUuid, PlayerEloSnapshot::getElo));
 
         List<PlayerRankEntry> playerRanks = new ArrayList<>();
         for (Map.Entry<UUID, String> entry : discordIds.entrySet()) {

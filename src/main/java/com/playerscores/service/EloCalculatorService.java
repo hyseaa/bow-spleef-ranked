@@ -44,9 +44,9 @@ public class EloCalculatorService {
                     return new IllegalArgumentException("Player team not found in context: " + playerTeamId);
                 });
 
-        int currentElo = snapshot.elo();
-        int k = kFactor(snapshot.matchesPlayed());
-        log.debug("Computing ELO for playerUuid={}: currentElo={}, matchesPlayed={}, k={}", snapshot.playerUuid(), currentElo, snapshot.matchesPlayed(), k);
+        int currentElo = snapshot.getElo();
+        int k = kFactor(snapshot.getMatchesPlayed());
+        log.debug("Computing ELO for playerUuid={}: currentElo={}, matchesPlayed={}, k={}", snapshot.getPlayerUuid(), currentElo, snapshot.getMatchesPlayed(), k);
 
         int cumulativeDelta = 0;
 
@@ -71,7 +71,7 @@ public class EloCalculatorService {
         }
 
         int newElo = Math.max(props.floor(), currentElo + cumulativeDelta);
-        log.debug("New ELO for playerUuid={}: {} (delta={}, floor={})", snapshot.playerUuid(), newElo, cumulativeDelta, props.floor());
+        log.debug("New ELO for playerUuid={}: {} (delta={}, floor={})", snapshot.getPlayerUuid(), newElo, cumulativeDelta, props.floor());
         return newElo;
     }
 }

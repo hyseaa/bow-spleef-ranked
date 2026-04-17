@@ -193,7 +193,7 @@ public class MatchService {
             return List.of();
         }
         Map<UUID, Integer> eloByUuid = eloMapper.findEloByUuidsAndSeason(uuids, rankedSeasonId).stream()
-                .collect(Collectors.toMap(PlayerEloSnapshot::playerUuid, PlayerEloSnapshot::elo));
+                .collect(Collectors.toMap(PlayerEloSnapshot::getPlayerUuid, PlayerEloSnapshot::getElo));
         List<RankTitle> titles = rankTitleMapper.findAll();
         List<PlayerRankEntry> ranks = new ArrayList<>();
         for (Map.Entry<UUID, String> entry : discordIds.entrySet()) {

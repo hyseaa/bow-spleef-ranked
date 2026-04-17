@@ -57,7 +57,7 @@ public class QueueService {
                 });
 
         int elo = playerStatsMapper.findSeasonElo(player.getUuid(), season.getId())
-                .map(PlayerSeasonEloRow::elo)
+                .map(PlayerSeasonEloRow::getElo)
                 .orElse(DEFAULT_ELO);
         log.debug("Player uuid={} queuing with elo={} (seasonId={})", player.getUuid(), elo, season.getId());
 

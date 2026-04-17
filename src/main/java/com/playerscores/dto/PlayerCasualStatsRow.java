@@ -1,3 +1,9 @@
 package com.playerscores.dto;
 
-public record PlayerCasualStatsRow(int matchesPlayed, int wins) {}
+import lombok.Data;
+
+@Data
+public class PlayerCasualStatsRow {
+    private int matchesPlayed;
+    private int wins;
+}

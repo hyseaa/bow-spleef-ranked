@@ -5,7 +5,6 @@ import com.playerscores.config.EloProperties;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.PlayerMapper;
-import com.playerscores.mapper.RankTitleMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
@@ -47,8 +46,6 @@ class EloRecomputeServiceTest {
     @Mock
     private PlayerMapper playerMapper;
     @Mock
-    private RankTitleMapper rankTitleMapper;
-    @Mock
     private MatchWebhookClient matchWebhookClient;
 
     @InjectMocks
@@ -69,7 +66,6 @@ class EloRecomputeServiceTest {
         when(teamPlayerMapper.findPlayerUuidsByTeamId(1L)).thenReturn(List.of());
         when(eloMapper.findUuidsWithNoMatches(10L)).thenReturn(List.of());
         when(eloMapper.findAllEloBySeasonId(10L)).thenReturn(List.of());
-        when(rankTitleMapper.findAll()).thenReturn(List.of());
         when(playerMapper.findByUuids(any())).thenReturn(List.of());
 
         eloRecomputeService.recomputeSeasonElo(10L);
@@ -86,7 +82,6 @@ class EloRecomputeServiceTest {
         when(matchMapper.findByRankedSeasonId(5L)).thenReturn(List.of());
         when(eloMapper.findUuidsWithNoMatches(5L)).thenReturn(List.of());
         when(eloMapper.findAllEloBySeasonId(5L)).thenReturn(List.of());
-        when(rankTitleMapper.findAll()).thenReturn(List.of());
         when(playerMapper.findByUuids(any())).thenReturn(List.of());
 
         eloRecomputeService.recomputeSeasonElo(5L);

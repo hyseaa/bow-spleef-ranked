@@ -27,7 +27,7 @@ public interface EloMapper {
     void updateElo(@Param("playerUuid") UUID playerUuid, @Param("rankedSeasonId") Long rankedSeasonId, @Param("elo") int elo);
 
     @Select("<script>"
-            + "SELECT player_uuid, elo, matches_played FROM player_season_elo "
+            + "SELECT player_uuid, elo, matches_played, rank_title FROM player_season_elo "
             + "WHERE ranked_season_id = #{rankedSeasonId} "
             + "AND player_uuid IN "
             + "<foreach item='uuid' collection='uuids' open='(' separator=',' close=')'>#{uuid}</foreach>"
@@ -55,14 +55,14 @@ public interface EloMapper {
 
     @Select("SELECT p.uuid, pse.elo, pse.matches_played, "
             + "COUNT(CASE WHEN m.id IS NOT NULL AND t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = t.match_id) THEN 1 END) AS wins, "
-            + "(SELECT name FROM rank_title WHERE min_elo <= pse.elo ORDER BY min_elo DESC LIMIT 1) AS title "
+            + "pse.rank_title AS title "
             + "FROM player_season_elo pse "
             + "JOIN player p ON p.uuid = pse.player_uuid "
             + "LEFT JOIN team_player tp ON tp.player_uuid = p.uuid "
             + "LEFT JOIN team t ON t.id = tp.team_id "
             + "LEFT JOIN match m ON m.id = t.match_id AND m.ranked_season_id = #{rankedSeasonId} "
             + "WHERE pse.ranked_season_id = #{rankedSeasonId} "
-            + "GROUP BY p.uuid, pse.elo, pse.matches_played "
+            + "GROUP BY p.uuid, pse.elo, pse.matches_played, pse.rank_title "
             + "ORDER BY pse.elo DESC, p.uuid ASC "
             + "LIMIT #{size} OFFSET #{offset}")
     List<LeaderboardRow> findLeaderboard(
@@ -79,8 +79,20 @@ public interface EloMapper {
     @Update("UPDATE player_season_elo SET elo = #{startingElo}, matches_played = 0 WHERE ranked_season_id = #{seasonId}")
     void resetPlayerSeasonElos(@Param("seasonId") Long seasonId, @Param("startingElo") int startingElo);
 
-    @Select("SELECT player_uuid, elo, matches_played FROM player_season_elo WHERE ranked_season_id = #{seasonId}")
+    @Select("SELECT player_uuid, elo, matches_played, rank_title FROM player_season_elo WHERE ranked_season_id = #{seasonId}")
     List<PlayerEloSnapshot> findAllEloBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Update("WITH ranked AS ("
+            + "SELECT player_uuid, PERCENT_RANK() OVER (ORDER BY elo) * 100 AS percentile "
+            + "FROM player_season_elo WHERE ranked_season_id = #{seasonId}"
+            + ") "
+            + "UPDATE player_season_elo pse "
+            + "SET rank_title = (SELECT rt.name FROM rank_title rt "
+            + "  WHERE rt.min_percentile <= r.percentile "
+            + "  ORDER BY rt.min_percentile DESC LIMIT 1) "
+            + "FROM ranked r "
+            + "WHERE pse.player_uuid = r.player_uuid AND pse.ranked_season_id = #{seasonId}")
+    void updateRankTitlesBySeason(@Param("seasonId") Long seasonId);
 
     @Select("SELECT player_uuid FROM player_season_elo WHERE ranked_season_id = #{seasonId} AND matches_played = 0")
     List<UUID> findUuidsWithNoMatches(@Param("seasonId") Long seasonId);

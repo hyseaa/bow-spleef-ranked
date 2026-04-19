@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class RankTitle {
-    private int minElo;
+    private double minPercentile;
     private String name;
 }

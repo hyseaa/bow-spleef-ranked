@@ -9,4 +9,5 @@ public class PlayerEloSnapshot {
     private UUID playerUuid;
     private int elo;
     private int matchesPlayed;
+    private String rankTitle;
 }

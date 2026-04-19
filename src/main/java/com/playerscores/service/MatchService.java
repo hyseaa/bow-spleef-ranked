@@ -20,7 +20,6 @@ import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
 import com.playerscores.mapper.PlayerMapper;
-import com.playerscores.mapper.RankTitleMapper;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
@@ -28,7 +27,6 @@ import com.playerscores.model.GameType;
 import com.playerscores.model.Match;
 import com.playerscores.model.MatchPlayerStat;
 import com.playerscores.model.Player;
-import com.playerscores.model.RankTitle;
 import com.playerscores.model.RankedSeason;
 import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
@@ -56,7 +54,6 @@ public class MatchService {
     private final PlayerMapper playerMapper;
     private final EloRecomputeService eloRecomputeService;
     private final EloMapper eloMapper;
-    private final RankTitleMapper rankTitleMapper;
     private final UsernameCache usernameCache;
     private final ObjectMapper objectMapper;
     private final GameTypeMapper gameTypeMapper;
@@ -130,6 +127,7 @@ public class MatchService {
             match.setRankedSeasonId(season.getId());
             log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());
             eloRecomputeService.applyEloUpdates(match.getId(), season.getId(), insertedTeams, teamIdToPlayers);
+            eloMapper.updateRankTitlesBySeason(season.getId());
         }
 
         log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
@@ -192,31 +190,16 @@ public class MatchService {
         if (discordIds.isEmpty()) {
             return List.of();
         }
-        Map<UUID, Integer> eloByUuid = eloMapper.findEloByUuidsAndSeason(uuids, rankedSeasonId).stream()
-                .collect(Collectors.toMap(PlayerEloSnapshot::getPlayerUuid, PlayerEloSnapshot::getElo));
-        List<RankTitle> titles = rankTitleMapper.findAll();
+        Map<UUID, String> rankTitleByUuid = eloMapper.findEloByUuidsAndSeason(uuids, rankedSeasonId).stream()
+                .collect(Collectors.toMap(PlayerEloSnapshot::getPlayerUuid, PlayerEloSnapshot::getRankTitle));
         List<PlayerRankEntry> ranks = new ArrayList<>();
         for (Map.Entry<UUID, String> entry : discordIds.entrySet()) {
-            Integer elo = eloByUuid.get(entry.getKey());
-            if (elo == null) {
-                continue;
-            }
-            String title = resolveTitle(elo, titles);
+            String title = rankTitleByUuid.get(entry.getKey());
             if (title != null) {
                 ranks.add(new PlayerRankEntry(entry.getValue(), title));
             }
         }
         return ranks;
-    }
-
-    private String resolveTitle(int elo, List<RankTitle> titles) {
-        String result = null;
-        for (RankTitle t : titles) {
-            if (elo >= t.getMinElo()) {
-                result = t.getName();
-            }
-        }
-        return result;
     }
 
     @Transactional

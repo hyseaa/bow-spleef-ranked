@@ -9,6 +9,6 @@ import java.util.List;
 @Mapper
 public interface RankTitleMapper {
 
-    @Select("SELECT min_elo, name FROM rank_title ORDER BY min_elo ASC")
+    @Select("SELECT min_percentile, name FROM rank_title ORDER BY min_percentile ASC")
     List<RankTitle> findAll();
 }

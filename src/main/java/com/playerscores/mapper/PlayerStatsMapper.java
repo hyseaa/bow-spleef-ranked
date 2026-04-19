@@ -31,7 +31,7 @@ public interface PlayerStatsMapper {
             + " WHERE tp.player_uuid = #{playerUuid} "
             + " AND m.ranked_season_id = rs.id "
             + " AND t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = m.id)) AS wins, "
-            + "(SELECT name FROM rank_title WHERE min_elo <= pse.elo ORDER BY min_elo DESC LIMIT 1) AS title "
+            + "pse.rank_title AS title "
             + "FROM player_season_elo pse "
             + "JOIN ranked_season rs ON rs.id = pse.ranked_season_id AND rs.active = TRUE "
             + "WHERE pse.player_uuid = #{playerUuid}")
@@ -39,7 +39,7 @@ public interface PlayerStatsMapper {
 
     @Select("SELECT pse.elo, pse.matches_played, "
             + "rs.id AS season_id, rs.name AS season_name, rs.game_type, "
-            + "(SELECT name FROM rank_title WHERE min_elo <= pse.elo ORDER BY min_elo DESC LIMIT 1) AS title "
+            + "pse.rank_title AS title "
             + "FROM player_season_elo pse "
             + "JOIN ranked_season rs ON rs.id = pse.ranked_season_id "
             + "WHERE pse.player_uuid = #{playerUuid} AND pse.ranked_season_id = #{seasonId}")

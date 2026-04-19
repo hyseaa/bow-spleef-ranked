@@ -22,7 +22,7 @@ public class RankTitleService {
     public List<RankTitleResponse> getAll() {
         log.debug("Fetching all rank titles");
         List<RankTitleResponse> result = rankTitleMapper.findAll().stream()
-                .map(rt -> new RankTitleResponse(rt.getMinElo(), rt.getName()))
+                .map(rt -> new RankTitleResponse(rt.getMinPercentile(), rt.getName()))
                 .toList();
         log.debug("Found {} rank title(s)", result.size());
         return result;

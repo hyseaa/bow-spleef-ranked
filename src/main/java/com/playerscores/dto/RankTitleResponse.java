@@ -1,3 +1,3 @@
 package com.playerscores.dto;
 
-public record RankTitleResponse(int minElo, String name) {}
+public record RankTitleResponse(double minPercentile, String name) {}

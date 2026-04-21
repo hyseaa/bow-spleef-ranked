@@ -1,6 +1,8 @@
 package com.playerscores.mapper;
 
 import com.playerscores.dto.LeaderboardRow;
+import com.playerscores.dto.MatchHistoryRow;
+import com.playerscores.dto.OpponentRow;
 import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.model.EloHistory;
 import org.apache.ibatis.annotations.Delete;
@@ -39,16 +41,34 @@ public interface EloMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insertHistory(EloHistory history);
 
-    @Select("SELECT match_id, elo_before, elo_after, elo_change, recorded_at "
-            + "FROM elo_history "
-            + "WHERE player_uuid = #{uuid} AND ranked_season_id = #{rankedSeasonId} "
-            + "ORDER BY recorded_at DESC "
+    @Select("SELECT eh.match_id, m.played_at, eh.elo_change, eh.elo_after, eh.recorded_at "
+            + "FROM elo_history eh "
+            + "JOIN match m ON m.id = eh.match_id "
+            + "WHERE eh.player_uuid = #{uuid} AND eh.ranked_season_id = #{rankedSeasonId} "
+            + "ORDER BY m.played_at DESC "
             + "LIMIT #{size} OFFSET #{offset}")
-    List<EloHistory> findHistoryByPlayerAndSeason(
+    List<MatchHistoryRow> findMatchHistoryByPlayerAndSeason(
             @Param("uuid") UUID uuid,
             @Param("rankedSeasonId") Long rankedSeasonId,
             @Param("size") int size,
             @Param("offset") int offset);
+
+    @Select("<script>"
+            + "SELECT t.match_id, tp.player_uuid AS uuid "
+            + "FROM team t "
+            + "JOIN team_player tp ON tp.team_id = t.id "
+            + "WHERE t.match_id IN "
+            + "<foreach item='id' collection='matchIds' open='(' separator=',' close=')'>#{id}</foreach>"
+            + " AND t.id NOT IN ("
+            + "  SELECT tp2.team_id FROM team_player tp2 "
+            + "  JOIN team t2 ON t2.id = tp2.team_id "
+            + "  WHERE tp2.player_uuid = #{playerUuid} AND t2.match_id IN "
+            + "  <foreach item='id' collection='matchIds' open='(' separator=',' close=')'>#{id}</foreach>"
+            + ")"
+            + "</script>")
+    List<OpponentRow> findOpponentsByMatchIds(
+            @Param("matchIds") List<Long> matchIds,
+            @Param("playerUuid") UUID playerUuid);
 
     @Select("SELECT COUNT(*) FROM elo_history WHERE player_uuid = #{uuid} AND ranked_season_id = #{rankedSeasonId}")
     long countHistoryByPlayerAndSeason(@Param("uuid") UUID uuid, @Param("rankedSeasonId") Long rankedSeasonId);

@@ -1,7 +1,10 @@
 package com.playerscores.service;
 
-import com.playerscores.dto.EloHistoryResponse;
 import com.playerscores.dto.LeaderboardEntryResponse;
+import com.playerscores.dto.MatchHistoryResponse;
+import com.playerscores.dto.MatchHistoryRow;
+import com.playerscores.dto.OpponentRow;
+import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.PlayerCasualStatsResponse;
 import com.playerscores.dto.PlayerCasualStatsRow;
@@ -25,7 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -134,14 +139,36 @@ public class PlayerService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<EloHistoryResponse> getEloHistory(UUID uuid, Long rankedSeasonId, int page, int size) {
-        log.debug("Fetching ELO history: uuid={}, seasonId={}, page={}, size={}", uuid, rankedSeasonId, page, size);
+    public PageResponse<MatchHistoryResponse> getEloHistory(UUID uuid, Long rankedSeasonId, int page, int size) {
+        log.debug("Fetching match history: uuid={}, seasonId={}, page={}, size={}", uuid, rankedSeasonId, page, size);
         long total = eloMapper.countHistoryByPlayerAndSeason(uuid, rankedSeasonId);
-        List<EloHistoryResponse> content = eloMapper.findHistoryByPlayerAndSeason(uuid, rankedSeasonId, size, page * size)
+        List<MatchHistoryRow> rows = eloMapper.findMatchHistoryByPlayerAndSeason(uuid, rankedSeasonId, size, page * size);
+
+        if (rows.isEmpty()) {
+            return PageResponse.of(List.of(), page, size, total);
+        }
+
+        List<Long> matchIds = rows.stream().map(MatchHistoryRow::getMatchId).toList();
+        Map<Long, List<PlayerSummaryResponse>> opponentsByMatch = eloMapper.findOpponentsByMatchIds(matchIds, uuid)
                 .stream()
-                .map(h -> new EloHistoryResponse(h.getMatchId(), h.getEloBefore(), h.getEloAfter(), h.getEloChange(), h.getRecordedAt()))
+                .collect(Collectors.groupingBy(
+                        OpponentRow::getMatchId,
+                        Collectors.mapping(
+                                r -> new PlayerSummaryResponse(r.getUuid(), usernameCache.get(r.getUuid())),
+                                Collectors.toList()
+                        )
+                ));
+
+        List<MatchHistoryResponse> content = rows.stream()
+                .map(r -> new MatchHistoryResponse(
+                        r.getMatchId(),
+                        r.getPlayedAt(),
+                        r.getEloChange(),
+                        r.getEloAfter(),
+                        opponentsByMatch.getOrDefault(r.getMatchId(), List.of())
+                ))
                 .toList();
-        log.debug("ELO history fetched: uuid={}, seasonId={}, total={}, returned={}", uuid, rankedSeasonId, total, content.size());
+        log.debug("Match history fetched: uuid={}, seasonId={}, total={}, returned={}", uuid, rankedSeasonId, total, content.size());
         return PageResponse.of(content, page, size, total);
     }
 }

@@ -1,6 +1,6 @@
 package com.playerscores.controller;
 
-import com.playerscores.dto.EloHistoryResponse;
+import com.playerscores.dto.MatchHistoryResponse;
 import com.playerscores.dto.LeaderboardEntryResponse;
 import com.playerscores.dto.PageResponse;
 import com.playerscores.dto.PlayerResponse;
@@ -106,13 +106,13 @@ public class PlayerController {
 
     @GetMapping("/{uuid}/elo-history")
     @Operation(summary = "Get ELO history for a player in a ranked season")
-    public PageResponse<EloHistoryResponse> getEloHistory(
+    public PageResponse<MatchHistoryResponse> getEloHistory(
             @PathVariable UUID uuid,
             @RequestParam @NotNull Long seasonId,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         log.info("Call to API: GET /api/v1/players/{}/elo-history with parameters: uuid={}, seasonId={}, page={}, size={}", uuid, uuid, seasonId, page, size);
-        PageResponse<EloHistoryResponse> response = playerService.getEloHistory(uuid, seasonId, page, size);
+        PageResponse<MatchHistoryResponse> response = playerService.getEloHistory(uuid, seasonId, page, size);
         log.info("Call to API: GET /api/v1/players/{}/elo-history completed", uuid);
         return response;
     }

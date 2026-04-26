@@ -162,11 +162,23 @@ public class MatchService {
             return new MatchNotFoundException(id);
         });
 
+        Map<UUID, Map<String, Object>> playerStats = new HashMap<>();
+
         List<TeamResponse> teams = teamMapper.findByMatchId(id).stream()
                 .map(team -> {
-                    List<PlayerSummaryResponse> players = teamPlayerMapper.findPlayerUuidsByTeamId(team.getId())
+                    List<PlayerSummaryResponse> players = teamPlayerMapper.findByTeamId(team.getId())
                             .stream()
-                            .map(uuid -> new PlayerSummaryResponse(uuid, usernameCache.get(uuid)))
+                            .map(tp -> {
+                                matchPlayerStatMapper.findStatsByTeamPlayerId(tp.getId()).ifPresent(json -> {
+                                    try {
+                                        playerStats.put(tp.getPlayerUuid(),
+                                                objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {}));
+                                    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                                        log.warn("Failed to deserialize stats for teamPlayerId={}: {}", tp.getId(), e.getMessage());
+                                    }
+                                });
+                                return new PlayerSummaryResponse(tp.getPlayerUuid(), usernameCache.get(tp.getPlayerUuid()));
+                            })
                             .toList();
                     return new TeamResponse(team.getId(), team.getScore(), players);
                 })
@@ -177,7 +189,9 @@ public class MatchService {
                 .orElse(match.getGameType());
 
         log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
-        return new MatchResponse(match.getId(), match.getGameType(), displayName, match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId());
+        Map<UUID, Map<String, Object>> stats = playerStats.isEmpty() ? null : playerStats;
+        return new MatchResponse(match.getId(), match.getGameType(), displayName,
+                match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats);
     }
 
     private List<PlayerRankEntry> buildPlayerRanks(List<UUID> uuids, Long rankedSeasonId) {

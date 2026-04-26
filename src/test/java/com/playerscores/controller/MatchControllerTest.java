@@ -45,7 +45,7 @@ class MatchControllerTest {
 
     @Test
     void createMatch_returns201() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse response = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null, null);
         when(matchService.createMatch(any())).thenReturn(response);
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
@@ -62,7 +62,7 @@ class MatchControllerTest {
 
     @Test
     void getMatch_found_returns200() throws Exception {
-        MatchResponse response = new MatchResponse(1L, "SKYWARS", "Sky Wars", "FRONT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse response = new MatchResponse(1L, "SKYWARS", "Sky Wars", "FRONT", OffsetDateTime.now(), List.of(), null, null);
         when(matchService.getMatch(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/matches/1"))
@@ -80,7 +80,7 @@ class MatchControllerTest {
 
     @Test
     void getMatchesByGameType_returns200() throws Exception {
-        MatchResponse match = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null);
+        MatchResponse match = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null, null);
         MatchListResponse response = MatchListResponse.of("BEDWARS", "Bed Wars", List.of(match), 0, 20, 1L);
         when(matchService.getMatchesByGameType("BEDWARS", 0, 20)).thenReturn(response);
 

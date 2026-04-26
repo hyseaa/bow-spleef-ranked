@@ -18,4 +18,7 @@ public interface TeamPlayerMapper {
 
     @Select("SELECT player_uuid FROM team_player WHERE team_id = #{teamId}")
     List<UUID> findPlayerUuidsByTeamId(Long teamId);
+
+    @Select("SELECT id, team_id, player_uuid FROM team_player WHERE team_id = #{teamId}")
+    List<TeamPlayer> findByTeamId(Long teamId);
 }

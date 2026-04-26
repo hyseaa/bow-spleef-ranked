@@ -4,7 +4,8 @@
       "Bash(./mvnw test:*)",
       "Bash(./mvnw checkstyle:check)",
       "Bash(./mvnw clean:*)",
-      "Bash(./mvnw compile *)"
+      "Bash(./mvnw compile *)",
+      "Skill(update-config)"
     ]
   }
 }

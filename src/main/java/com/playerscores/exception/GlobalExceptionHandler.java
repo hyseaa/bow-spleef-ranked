@@ -61,6 +61,21 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "NO_ACTIVE_RANKED_SEASON", ex.getMessage());
     }
 
+    @ExceptionHandler(DuelChallengeNotFoundException.class)
+    public ProblemDetail handleDuelChallengeNotFound(DuelChallengeNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "DUEL_CHALLENGE_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuelChallengeNotPendingException.class)
+    public ProblemDetail handleDuelChallengeNotPending(DuelChallengeNotPendingException ex) {
+        return problem(HttpStatus.CONFLICT, "DUEL_CHALLENGE_NOT_PENDING", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuelChallengeForbiddenException.class)
+    public ProblemDetail handleDuelChallengeForbidden(DuelChallengeForbiddenException ex) {
+        return problem(HttpStatus.FORBIDDEN, "DUEL_CHALLENGE_FORBIDDEN", ex.getMessage());
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());

@@ -143,7 +143,12 @@ class MatchServiceTest {
         team.setId(1L);
         team.setScore(3);
         when(teamMapper.findByMatchId(1L)).thenReturn(List.of(team));
-        when(teamPlayerMapper.findPlayerUuidsByTeamId(1L)).thenReturn(List.of(uuid));
+        TeamPlayer tp = new TeamPlayer();
+        tp.setId(1L);
+        tp.setTeamId(1L);
+        tp.setPlayerUuid(uuid);
+        when(teamPlayerMapper.findByTeamId(1L)).thenReturn(List.of(tp));
+        when(matchPlayerStatMapper.findStatsByTeamPlayerId(1L)).thenReturn(Optional.empty());
         when(usernameCache.get(uuid)).thenReturn("Notch");
 
         GameType gameType = new GameType();

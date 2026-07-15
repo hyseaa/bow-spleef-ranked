@@ -12,7 +12,9 @@ import com.playerscores.dto.PlayerRankEntry;
 import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.dto.TeamResponse;
+import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.GameTypeNotFoundException;
+import com.playerscores.exception.InvalidTeamSizeException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.exception.NoActiveRankedSeasonException;
 import com.playerscores.mapper.EloMapper;
@@ -37,8 +39,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -64,17 +68,19 @@ public class MatchService {
     public MatchResponse createMatch(CreateMatchRequest request) {
         log.info("Creating match: gameType={}, teams={}", request.gameType(), request.teams().size());
 
-        for (TeamRequest teamReq : request.teams()) {
-            for (UUID uuid : teamReq.playerUuids()) {
-                playerMapper.insertIfAbsent(uuid);
-            }
-        }
-
         GameType gameType = gameTypeMapper.findByName(request.gameType())
                 .orElseThrow(() -> {
                     log.warn("Match creation failed: game type not found: {}", request.gameType());
                     return new GameTypeNotFoundException(request.gameType());
                 });
+
+        validateTeams(request, gameType);
+
+        for (TeamRequest teamReq : request.teams()) {
+            for (UUID uuid : teamReq.playerUuids()) {
+                playerMapper.insertIfAbsent(uuid);
+            }
+        }
 
         Match match = new Match();
         match.setGameType(request.gameType());
@@ -136,6 +142,27 @@ public class MatchService {
         List<PlayerRankEntry> playerRanks = buildPlayerRanks(allUuids, match.getRankedSeasonId());
         matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks));
         return response;
+    }
+
+    /**
+     * Ranked game types require exactly teamSize players per team; duplicate players
+     * (within or across teams) are rejected for every match.
+     */
+    private void validateTeams(CreateMatchRequest request, GameType gameType) {
+        Set<UUID> seen = new HashSet<>();
+        for (TeamRequest teamReq : request.teams()) {
+            if (gameType.isRanked() && teamReq.playerUuids().size() != gameType.getTeamSize()) {
+                log.warn("Match creation failed: invalid team size for gameType={}: expected={}, actual={}",
+                        gameType.getName(), gameType.getTeamSize(), teamReq.playerUuids().size());
+                throw new InvalidTeamSizeException(gameType.getName(), gameType.getTeamSize(), teamReq.playerUuids().size());
+            }
+            for (UUID uuid : teamReq.playerUuids()) {
+                if (!seen.add(uuid)) {
+                    log.warn("Match creation failed: duplicate player in match: uuid={}", uuid);
+                    throw new DuplicatePlayerInMatchException(uuid);
+                }
+            }
+        }
     }
 
     @Transactional(readOnly = true)

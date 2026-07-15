@@ -76,6 +76,46 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.FORBIDDEN, "DUEL_CHALLENGE_FORBIDDEN", ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidTeamSizeException.class)
+    public ProblemDetail handleInvalidTeamSize(InvalidTeamSizeException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "INVALID_TEAM_SIZE", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuplicatePlayerInMatchException.class)
+    public ProblemDetail handleDuplicatePlayer(DuplicatePlayerInMatchException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "DUPLICATE_PLAYER", ex.getMessage());
+    }
+
+    @ExceptionHandler(PartyNotFoundException.class)
+    public ProblemDetail handlePartyNotFound(PartyNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "PARTY_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(PartyInviteNotFoundException.class)
+    public ProblemDetail handlePartyInviteNotFound(PartyInviteNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "PARTY_INVITE_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(PartyForbiddenException.class)
+    public ProblemDetail handlePartyForbidden(PartyForbiddenException ex) {
+        return problem(HttpStatus.FORBIDDEN, "PARTY_FORBIDDEN", ex.getMessage());
+    }
+
+    @ExceptionHandler(AlreadyInPartyException.class)
+    public ProblemDetail handleAlreadyInParty(AlreadyInPartyException ex) {
+        return problem(HttpStatus.CONFLICT, "ALREADY_IN_PARTY", ex.getMessage());
+    }
+
+    @ExceptionHandler(PlayerNotInPartyException.class)
+    public ProblemDetail handlePlayerNotInParty(PlayerNotInPartyException ex) {
+        return problem(HttpStatus.CONFLICT, "NOT_IN_PARTY", ex.getMessage());
+    }
+
+    @ExceptionHandler(PartyFullException.class)
+    public ProblemDetail handlePartyFull(PartyFullException ex) {
+        return problem(HttpStatus.CONFLICT, "PARTY_FULL", ex.getMessage());
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());

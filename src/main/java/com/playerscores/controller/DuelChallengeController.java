@@ -31,7 +31,10 @@ public class DuelChallengeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create a duel challenge")
+    @Operation(summary = "Create a duel challenge",
+            description = "For team game types the challenger must lead a party and may target any member "
+                    + "of the opposing party; the returned challengedUuid is that party's LEADER, "
+                    + "who alone can accept/refuse/confirm.")
     public DuelChallengeResponse create(@Valid @RequestBody CreateDuelChallengeRequest request) {
         log.info("POST /api/v1/duel-challenges: challenger={}, challenged={}, gameType={}",
                 request.challengerDiscordId(), request.challengedDiscordId(), request.gameType());

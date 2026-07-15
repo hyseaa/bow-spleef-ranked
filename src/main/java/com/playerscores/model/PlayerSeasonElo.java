@@ -9,5 +9,7 @@ public class PlayerSeasonElo {
     private UUID playerUuid;
     private Long rankedSeasonId;
     private int elo;
+    private double mu;
+    private double sigma;
     private int matchesPlayed;
 }

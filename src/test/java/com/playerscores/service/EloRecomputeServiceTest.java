@@ -32,7 +32,7 @@ class EloRecomputeServiceTest {
     @Mock
     private EloMapper eloMapper;
     @Mock
-    private EloCalculatorService eloCalculator;
+    private OpenSkillRatingService ratingService;
     @Mock
     private MatchMapper matchMapper;
     @Mock
@@ -54,6 +54,8 @@ class EloRecomputeServiceTest {
     @Test
     void recomputeSeasonElo_resetsAndReplaysAllMatches() {
         when(eloProperties.startingElo()).thenReturn(1000);
+        when(eloProperties.mu()).thenReturn(25.0);
+        when(eloProperties.sigma()).thenReturn(25.0 / 3.0);
 
         Match m1 = match(1L, 10L);
         Match m2 = match(2L, 10L);
@@ -72,13 +74,15 @@ class EloRecomputeServiceTest {
 
         verify(rankedSeasonMapper).clearEloDirty(10L);
         verify(eloMapper).deleteHistoryBySeasonId(10L);
-        verify(eloMapper).resetPlayerSeasonElos(10L, 1000);
+        verify(eloMapper).resetPlayerSeasonElos(10L, 1000, 25.0, 25.0 / 3.0);
         verify(teamMapper, times(2)).findByMatchId(anyLong());
     }
 
     @Test
     void recomputeSeasonElo_noMatches_onlyResets() {
         when(eloProperties.startingElo()).thenReturn(1000);
+        when(eloProperties.mu()).thenReturn(25.0);
+        when(eloProperties.sigma()).thenReturn(25.0 / 3.0);
         when(matchMapper.findByRankedSeasonId(5L)).thenReturn(List.of());
         when(eloMapper.findUuidsWithNoMatches(5L)).thenReturn(List.of());
         when(eloMapper.findAllEloBySeasonId(5L)).thenReturn(List.of());
@@ -88,7 +92,7 @@ class EloRecomputeServiceTest {
 
         verify(rankedSeasonMapper).clearEloDirty(5L);
         verify(eloMapper).deleteHistoryBySeasonId(5L);
-        verify(eloMapper).resetPlayerSeasonElos(5L, 1000);
+        verify(eloMapper).resetPlayerSeasonElos(5L, 1000, 25.0, 25.0 / 3.0);
         verify(teamMapper, never()).findByMatchId(anyLong());
     }
 

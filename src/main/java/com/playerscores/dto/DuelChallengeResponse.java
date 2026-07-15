@@ -1,6 +1,7 @@
 package com.playerscores.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record DuelChallengeResponse(
@@ -9,6 +10,8 @@ public record DuelChallengeResponse(
         String challengerUsername,
         UUID challengedUuid,
         String challengedUsername,
+        List<PlayerSummaryResponse> challengerTeam,
+        List<PlayerSummaryResponse> challengedTeam,
         String gameType,
         String status,
         UUID reporterUuid,

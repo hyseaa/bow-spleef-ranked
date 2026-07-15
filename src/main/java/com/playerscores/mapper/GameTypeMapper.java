@@ -11,12 +11,12 @@ import java.util.Optional;
 @Mapper
 public interface GameTypeMapper {
 
-    @Insert("INSERT INTO game_types (name, display_name, ranked) VALUES (#{name}, #{displayName}, #{ranked})")
+    @Insert("INSERT INTO game_types (name, display_name, ranked, team_size) VALUES (#{name}, #{displayName}, #{ranked}, #{teamSize})")
     void insert(GameType gameType);
 
-    @Select("SELECT name, display_name, ranked FROM game_types WHERE name = #{name}")
+    @Select("SELECT name, display_name, ranked, team_size FROM game_types WHERE name = #{name}")
     Optional<GameType> findByName(String name);
 
-    @Select("SELECT name, display_name, ranked FROM game_types ORDER BY name ASC")
+    @Select("SELECT name, display_name, ranked, team_size FROM game_types ORDER BY name ASC")
     List<GameType> findAll();
 }

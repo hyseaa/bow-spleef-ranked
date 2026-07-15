@@ -19,17 +19,19 @@ import java.util.UUID;
 @Mapper
 public interface EloMapper {
 
-    @Insert("INSERT INTO player_season_elo (player_uuid, ranked_season_id) "
-            + "VALUES (#{playerUuid}, #{rankedSeasonId}) "
+    @Insert("INSERT INTO player_season_elo (player_uuid, ranked_season_id, elo, mu, sigma) "
+            + "VALUES (#{playerUuid}, #{rankedSeasonId}, #{elo}, #{mu}, #{sigma}) "
             + "ON CONFLICT (player_uuid, ranked_season_id) DO NOTHING")
-    void upsertPlayerSeasonElo(@Param("playerUuid") UUID playerUuid, @Param("rankedSeasonId") Long rankedSeasonId);
+    void upsertPlayerSeasonElo(@Param("playerUuid") UUID playerUuid, @Param("rankedSeasonId") Long rankedSeasonId,
+                               @Param("elo") int elo, @Param("mu") double mu, @Param("sigma") double sigma);
 
-    @Update("UPDATE player_season_elo SET elo = #{elo}, matches_played = matches_played + 1 "
+    @Update("UPDATE player_season_elo SET elo = #{elo}, mu = #{mu}, sigma = #{sigma}, matches_played = matches_played + 1 "
             + "WHERE player_uuid = #{playerUuid} AND ranked_season_id = #{rankedSeasonId}")
-    void updateElo(@Param("playerUuid") UUID playerUuid, @Param("rankedSeasonId") Long rankedSeasonId, @Param("elo") int elo);
+    void updateElo(@Param("playerUuid") UUID playerUuid, @Param("rankedSeasonId") Long rankedSeasonId,
+                   @Param("elo") int elo, @Param("mu") double mu, @Param("sigma") double sigma);
 
     @Select("<script>"
-            + "SELECT player_uuid, elo, matches_played, rank_title FROM player_season_elo "
+            + "SELECT player_uuid, elo, mu, sigma, matches_played, rank_title FROM player_season_elo "
             + "WHERE ranked_season_id = #{rankedSeasonId} "
             + "AND player_uuid IN "
             + "<foreach item='uuid' collection='uuids' open='(' separator=',' close=')'>#{uuid}</foreach>"
@@ -96,10 +98,12 @@ public interface EloMapper {
     @Delete("DELETE FROM elo_history WHERE ranked_season_id = #{seasonId}")
     void deleteHistoryBySeasonId(@Param("seasonId") Long seasonId);
 
-    @Update("UPDATE player_season_elo SET elo = #{startingElo}, matches_played = 0 WHERE ranked_season_id = #{seasonId}")
-    void resetPlayerSeasonElos(@Param("seasonId") Long seasonId, @Param("startingElo") int startingElo);
+    @Update("UPDATE player_season_elo SET elo = #{startingElo}, mu = #{mu}, sigma = #{sigma}, matches_played = 0 "
+            + "WHERE ranked_season_id = #{seasonId}")
+    void resetPlayerSeasonElos(@Param("seasonId") Long seasonId, @Param("startingElo") int startingElo,
+                               @Param("mu") double mu, @Param("sigma") double sigma);
 
-    @Select("SELECT player_uuid, elo, matches_played, rank_title FROM player_season_elo WHERE ranked_season_id = #{seasonId}")
+    @Select("SELECT player_uuid, elo, mu, sigma, matches_played, rank_title FROM player_season_elo WHERE ranked_season_id = #{seasonId}")
     List<PlayerEloSnapshot> findAllEloBySeasonId(@Param("seasonId") Long seasonId);
 
     @Update("WITH ranked AS ("

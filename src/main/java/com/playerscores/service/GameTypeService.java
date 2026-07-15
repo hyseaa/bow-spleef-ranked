@@ -26,11 +26,13 @@ public class GameTypeService {
 
     @Transactional
     public GameTypeResponse create(GameTypeRequest request) {
-        log.info("Creating game type: name={}, displayName={}, ranked={}", request.name(), request.displayName(), request.ranked());
+        log.info("Creating game type: name={}, displayName={}, ranked={}, teamSize={}",
+                request.name(), request.displayName(), request.ranked(), request.teamSize());
         GameType gt = new GameType();
         gt.setName(request.name());
         gt.setDisplayName(request.displayName());
         gt.setRanked(request.ranked());
+        gt.setTeamSize(request.teamSize() != null ? request.teamSize() : 1);
         gameTypeMapper.insert(gt);
         log.info("Game type created: name={}", gt.getName());
         return toResponse(gt);
@@ -60,6 +62,6 @@ public class GameTypeService {
 
     private GameTypeResponse toResponse(GameType gt) {
         boolean active = !gt.isRanked() || rankedSeasonMapper.findActiveByGameType(gt.getName()).isPresent();
-        return new GameTypeResponse(gt.getName(), gt.getDisplayName(), gt.isRanked(), active);
+        return new GameTypeResponse(gt.getName(), gt.getDisplayName(), gt.isRanked(), gt.getTeamSize(), active);
     }
 }

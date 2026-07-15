@@ -6,7 +6,9 @@ import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
+import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.GameTypeNotFoundException;
+import com.playerscores.exception.InvalidTeamSizeException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
@@ -166,6 +168,93 @@ class MatchServiceTest {
         assertThat(response.gameType()).isEqualTo("BEDWARS");
         assertThat(response.teams()).hasSize(1);
         assertThat(response.teams().getFirst().players()).hasSize(1);
+    }
+
+    @Test
+    void createMatch_ranked_wrongTeamSize_throwsInvalidTeamSize() {
+        GameType gameType = new GameType();
+        gameType.setName("DUEL_2V2");
+        gameType.setDisplayName("Duel 2v2");
+        gameType.setRanked(true);
+        gameType.setTeamSize(2);
+        when(gameTypeMapper.findByName("DUEL_2V2")).thenReturn(Optional.of(gameType));
+
+        CreateMatchRequest request = new CreateMatchRequest("DUEL_2V2", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(UUID.randomUUID(), UUID.randomUUID())),
+                        new TeamRequest(1, List.of(UUID.randomUUID()))), null);
+
+        assertThatThrownBy(() -> matchService.createMatch(request))
+                .isInstanceOf(InvalidTeamSizeException.class);
+        verify(playerMapper, never()).insertIfAbsent(any());
+        verify(matchMapper, never()).insert(any(Match.class));
+    }
+
+    @Test
+    void createMatch_duplicatePlayerAcrossTeams_throwsDuplicatePlayer() {
+        UUID duplicated = UUID.randomUUID();
+
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(gameType));
+
+        CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(duplicated)),
+                        new TeamRequest(1, List.of(duplicated))), null);
+
+        assertThatThrownBy(() -> matchService.createMatch(request))
+                .isInstanceOf(DuplicatePlayerInMatchException.class);
+        verify(matchMapper, never()).insert(any(Match.class));
+    }
+
+    @Test
+    void createMatch_unranked_teamSizeNotEnforced() {
+        // Casual game types accept arbitrary team compositions: team_size
+        // is only enforced for ranked game types.
+        UUID p1 = UUID.randomUUID();
+        UUID p2 = UUID.randomUUID();
+        UUID p3 = UUID.randomUUID();
+
+        doAnswer(inv -> {
+            Match m = inv.getArgument(0);
+            m.setId(1L);
+            m.setPlayedAt(OffsetDateTime.now());
+            return null;
+        }).when(matchMapper).insert(any(Match.class));
+        doAnswer(inv -> {
+            Team t = inv.getArgument(0);
+            t.setId(1L);
+            return null;
+        }).when(teamMapper).insert(any(Team.class));
+        doAnswer(inv -> {
+            TeamPlayer tp = inv.getArgument(0);
+            tp.setId(1L);
+            return null;
+        }).when(teamPlayerMapper).insert(any(TeamPlayer.class));
+
+        Match match = new Match();
+        match.setId(1L);
+        match.setGameType("BEDWARS");
+        match.setSource("DISCORD_BOT");
+        match.setPlayedAt(OffsetDateTime.now());
+        when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
+        when(teamMapper.findByMatchId(1L)).thenReturn(List.of());
+
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        gameType.setTeamSize(1);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(gameType));
+
+        CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(p1, p2)),
+                        new TeamRequest(1, List.of(p3))), null);
+
+        MatchResponse response = matchService.createMatch(request);
+
+        assertThat(response.gameType()).isEqualTo("BEDWARS");
     }
 
     @Test

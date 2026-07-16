@@ -25,8 +25,8 @@ public class VerificationService {
     private final MojangClient mojangClient;
     private final HypixelClient hypixelClient;
     private final UsernameCache usernameCache;
+    private final PlayerLinkService playerLinkService;
 
-    @Transactional
     public VerifiedPlayerResponse verify(VerifyRequest request) {
         log.info("Starting verification for minecraftUsername={}, discordId={}", request.minecraftUsername(), request.discordId());
 
@@ -47,8 +47,7 @@ public class VerificationService {
             throw new DiscordMismatchException(linkedDiscord);
         }
 
-        playerMapper.insertIfAbsent(uuid);
-        playerMapper.updateDiscordId(uuid, request.discordId());
+        playerLinkService.linkDiscord(uuid, request.discordId());
         log.info("Verification successful: uuid={} linked to discordId={}", uuid, request.discordId());
 
         String username = usernameCache.get(uuid);

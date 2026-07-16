@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record EloProperties(
         @DefaultValue("100") int floor,
         @DefaultValue("1000") int startingElo,
-        @DefaultValue("15") double ordinalScale,
+        @DefaultValue("10") double ordinalScale,
         @DefaultValue("25.0") double mu,
         @DefaultValue("8.333333333333334") double sigma,
         @DefaultValue("4.166666666666667") double beta,

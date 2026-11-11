@@ -1,6 +1,6 @@
 # Bow Spleef Ranked — API
 
-Ranked API for Hypixel Bow Spleef played through Discord: players, verification, matches, OpenSkill ratings, seasons, rank titles, queue, duel challenges, parties. Its only client is the Discord bot (`../bot`).
+Ranked API for Hypixel Bow Spleef played through Discord: players, verification, matches, OpenSkill ratings, seasons, rank titles, queue, duel challenges, parties. Its main client is the Discord bot (`../bot`); a `hysea-server` source also posts matches (see `../docs/architecture/integration.md`).
 
 **Documentation and decisions live in the parent workspace** (`../`, its own git repository): read `../AGENTS.md` first — golden rules, workflow, conventions and the documentation index. API reference: `../docs/api/`; bot ↔ API contract: `../docs/architecture/integration.md`; decisions: `../docs/architecture/adr/`; latest context: the newest file in `../docs/journal/`.
 

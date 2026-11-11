@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +34,8 @@ class VerificationServiceTest {
     private HypixelClient hypixelClient;
     @Mock
     private UsernameCache usernameCache;
+    @Mock
+    private PlayerLinkService playerLinkService;
 
     @InjectMocks
     private VerificationService verificationService;
@@ -83,6 +86,7 @@ class VerificationServiceTest {
 
         assertThat(response.discordId()).isEqualTo("123456789");
         assertThat(response.username()).isEqualTo("Notch");
+        verify(playerLinkService).linkDiscord(uuid, "123456789");
     }
 
     @Test

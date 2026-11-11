@@ -31,6 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
 
+    // Discord snowflake-like IDs: player.discord_id is VARCHAR(20)
+    private static final String CHALLENGER_DISCORD_ID = "100000000000000001";
+    private static final String CHALLENGED_DISCORD_ID = "100000000000000002";
+
     @Autowired
     private DuelChallengeService duelChallengeService;
     @Autowired
@@ -46,8 +50,8 @@ class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
         UUID challengedUuid = UUID.randomUUID();
         playerMapper.insertIfAbsent(challengerUuid);
         playerMapper.insertIfAbsent(challengedUuid);
-        playerMapper.updateDiscordId(challengerUuid, "concurrency-challenger");
-        playerMapper.updateDiscordId(challengedUuid, "concurrency-challenged");
+        playerMapper.updateDiscordId(challengerUuid, CHALLENGER_DISCORD_ID);
+        playerMapper.updateDiscordId(challengedUuid, CHALLENGED_DISCORD_ID);
 
         // Non-ranked so createMatch doesn't require an active ranked season; unique name so the
         // final match count assertion is isolated from anything else the test run may create.
@@ -60,10 +64,10 @@ class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
         gameTypeMapper.insert(gameType);
 
         DuelChallengeResponse challenge = duelChallengeService.create(
-                new CreateDuelChallengeRequest("concurrency-challenger", "concurrency-challenged", gameTypeName));
-        duelChallengeService.accept(challenge.id(), "concurrency-challenged");
+                new CreateDuelChallengeRequest(CHALLENGER_DISCORD_ID, CHALLENGED_DISCORD_ID, gameTypeName));
+        duelChallengeService.accept(challenge.id(), CHALLENGED_DISCORD_ID);
         duelChallengeService.reportScores(challenge.id(),
-                new ReportDuelScoresRequest("concurrency-challenger", 5, 3));
+                new ReportDuelScoresRequest(CHALLENGER_DISCORD_ID, 5, 3));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
@@ -75,7 +79,7 @@ class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
             ready.countDown();
             go.await();
             try {
-                duelChallengeService.confirmScores(challenge.id(), "concurrency-challenged");
+                duelChallengeService.confirmScores(challenge.id(), CHALLENGED_DISCORD_ID);
                 successCount.incrementAndGet();
             } catch (DuelChallengeNotPendingException e) {
                 conflictCount.incrementAndGet();

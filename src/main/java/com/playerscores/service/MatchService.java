@@ -83,6 +83,17 @@ public class MatchService {
 
         validateTeams(request, gameType);
 
+        // KI-28: lock the season before anything else, so that the matches of a season are rated one at
+        // a time, in the order of their played_at.
+        RankedSeason season = null;
+        if (gameType.isRanked()) {
+            season = rankedSeasonMapper.lockActiveByGameType(request.gameType())
+                    .orElseThrow(() -> {
+                        log.warn("Match creation failed: no active ranked season for gameType={}", request.gameType());
+                        return new NoActiveRankedSeasonException();
+                    });
+        }
+
         for (TeamRequest teamReq : request.teams()) {
             for (UUID uuid : teamReq.playerUuids()) {
                 playerMapper.insertIfAbsent(uuid);
@@ -130,12 +141,7 @@ public class MatchService {
             teamIdToPlayers.put(team.getId(), teamPlayers);
         }
 
-        if (gameType.isRanked()) {
-            RankedSeason season = rankedSeasonMapper.findActiveByGameType(request.gameType())
-                    .orElseThrow(() -> {
-                        log.warn("Match creation failed: no active ranked season for gameType={}", request.gameType());
-                        return new NoActiveRankedSeasonException();
-                    });
+        if (season != null) {
             matchMapper.updateRankedSeasonId(match.getId(), season.getId());
             match.setRankedSeasonId(season.getId());
             log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());

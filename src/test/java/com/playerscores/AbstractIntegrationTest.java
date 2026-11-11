@@ -3,14 +3,20 @@ package com.playerscores;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+/**
+ * Base of the integration tests. One PostgreSQL container for the whole test run: Spring caches
+ * application contexts between test classes, and a cached context keeps the datasource of the
+ * container it was built with, so a container per class would leave later classes talking to a
+ * stopped one ("Failed to obtain JDBC Connection"). The container is stopped at the end of the JVM.
+ */
 @SpringBootTest
-@Testcontainers
 public abstract class AbstractIntegrationTest {
 
-    @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    static {
+        POSTGRES.start();
+    }
 }

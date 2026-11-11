@@ -15,7 +15,9 @@ import java.util.Optional;
 @Mapper
 public interface MatchMapper {
 
-    @Insert("INSERT INTO match (game_type, source, played_at) VALUES (#{gameType}, #{source}, NOW())")
+    // clock_timestamp(), not NOW(): NOW() is the start of the transaction, and a ranked match must be dated
+    // after it has obtained the season lock so that played_at order is the order in which it was rated (KI-28).
+    @Insert("INSERT INTO match (game_type, source, played_at) VALUES (#{gameType}, #{source}, clock_timestamp())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Match match);
 

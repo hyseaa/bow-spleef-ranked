@@ -47,7 +47,8 @@ public class EloRecomputeService {
 
     /**
      * Rates one match of a season with the season's own rating algorithm (ADR-0013, REQ-001-05)
-     * and records the new ratings and the rating history.
+     * and records the new ratings and the rating history. The caller must hold the season's row
+     * lock (KI-28): {@code lockActiveByGameType} for a live match, the dirty-flag update of a recompute.
      */
     public void applyEloUpdates(Long matchId, RankedSeason season, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
         Long seasonId = season.getId();

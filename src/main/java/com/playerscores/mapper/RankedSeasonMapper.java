@@ -29,6 +29,16 @@ public interface RankedSeasonMapper {
             "WHERE active = TRUE AND game_type = #{gameType}")
     Optional<RankedSeason> findActiveByGameType(String gameType);
 
+    /**
+     * The active season of a game type, with its row locked until the end of the transaction (KI-28).
+     * Every rating write of a season (live match or recompute) holds this lock, so they run one after
+     * the other. If a concurrent deactivation commits while this waits, the season is no longer active
+     * and nothing is returned.
+     */
+    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty, rating_algorithm FROM ranked_season " +
+            "WHERE active = TRUE AND game_type = #{gameType} FOR UPDATE")
+    Optional<RankedSeason> lockActiveByGameType(String gameType);
+
     @Update("UPDATE ranked_season SET active = FALSE, ends_at = NOW() WHERE id = #{id}")
     int deactivate(Long id);
 

@@ -1,8 +1,12 @@
 package com.playerscores.service;
 
 import com.playerscores.config.EloProperties;
+import com.playerscores.dto.InitialRating;
 import com.playerscores.dto.PlayerRating;
+import com.playerscores.dto.RatingResult;
 import com.playerscores.dto.TeamRatingContext;
+import com.playerscores.dto.TeamRatingInput;
+import com.playerscores.model.RatingAlgorithm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,9 +25,33 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class OpenSkillRatingService {
+public class OpenSkillRatingService implements RatingEngine {
 
     private final EloProperties props;
+
+    @Override
+    public RatingAlgorithm algorithm() {
+        return RatingAlgorithm.OPENSKILL;
+    }
+
+    @Override
+    public InitialRating initialRating() {
+        return new InitialRating(props.startingElo(), props.mu(), props.sigma());
+    }
+
+    /** {@link RatingEngine} entry point: rates on mu/sigma, then derives the displayed Elo. */
+    @Override
+    public Map<UUID, RatingResult> rateMatch(List<TeamRatingInput> teams) {
+        List<TeamRatingContext> contexts = teams.stream()
+                .map(t -> new TeamRatingContext(t.teamId(), t.score(), t.players().stream()
+                        .map(p -> new PlayerRating(p.getPlayerUuid(), p.getMu(), p.getSigma()))
+                        .toList()))
+                .toList();
+        Map<UUID, RatingResult> result = new HashMap<>();
+        rate(contexts).forEach((uuid, r) ->
+                result.put(uuid, new RatingResult(uuid, displayedElo(r.mu(), r.sigma()), r.mu(), r.sigma())));
+        return result;
+    }
 
     /**
      * Computes post-match ratings for every player of the match in one pass.

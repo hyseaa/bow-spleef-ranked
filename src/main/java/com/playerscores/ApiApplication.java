@@ -1,5 +1,6 @@
 package com.playerscores;
 
+import com.playerscores.config.ClassicEloProperties;
 import com.playerscores.config.EloProperties;
 import com.playerscores.config.WebhookProperties;
 import org.springframework.boot.SpringApplication;
@@ -9,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties({EloProperties.class, WebhookProperties.class})
+@EnableConfigurationProperties({EloProperties.class, ClassicEloProperties.class, WebhookProperties.class})
 public class ApiApplication {
 
     public static void main(String[] args) {

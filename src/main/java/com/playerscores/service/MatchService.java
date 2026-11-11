@@ -139,7 +139,7 @@ public class MatchService {
             matchMapper.updateRankedSeasonId(match.getId(), season.getId());
             match.setRankedSeasonId(season.getId());
             log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());
-            eloRecomputeService.applyEloUpdates(match.getId(), season.getId(), insertedTeams, teamIdToPlayers);
+            eloRecomputeService.applyEloUpdates(match.getId(), season, insertedTeams, teamIdToPlayers);
             eloMapper.updateRankTitlesBySeason(season.getId());
         }
 

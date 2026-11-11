@@ -1,12 +1,13 @@
 package com.playerscores.service;
 
 import com.playerscores.client.MatchWebhookClient;
-import com.playerscores.config.EloProperties;
 import com.playerscores.dto.PlayerEloSnapshot;
 import com.playerscores.dto.PlayerRankEntry;
-import com.playerscores.dto.PlayerRating;
+import com.playerscores.dto.InitialRating;
 import com.playerscores.dto.RankSnapshotPayload;
-import com.playerscores.dto.TeamRatingContext;
+import com.playerscores.dto.RatingResult;
+import com.playerscores.dto.TeamRatingInput;
+import com.playerscores.exception.RankedSeasonNotFoundException;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.PlayerMapper;
@@ -16,6 +17,7 @@ import com.playerscores.mapper.TeamPlayerMapper;
 import com.playerscores.model.EloHistory;
 import com.playerscores.model.Match;
 import com.playerscores.model.Player;
+import com.playerscores.model.RankedSeason;
 import com.playerscores.model.Team;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,20 +37,25 @@ import java.util.stream.Collectors;
 public class EloRecomputeService {
 
     private final EloMapper eloMapper;
-    private final OpenSkillRatingService ratingService;
+    private final RatingEngines ratingEngines;
     private final MatchMapper matchMapper;
     private final TeamMapper teamMapper;
     private final TeamPlayerMapper teamPlayerMapper;
     private final RankedSeasonMapper rankedSeasonMapper;
-    private final EloProperties eloProperties;
     private final PlayerMapper playerMapper;
     private final MatchWebhookClient matchWebhookClient;
 
-    public void applyEloUpdates(Long matchId, Long seasonId, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
+    /**
+     * Rates one match of a season with the season's own rating algorithm (ADR-0013, REQ-001-05)
+     * and records the new ratings and the rating history.
+     */
+    public void applyEloUpdates(Long matchId, RankedSeason season, List<Team> teams, Map<Long, List<UUID>> teamIdToPlayers) {
+        Long seasonId = season.getId();
+        RatingEngine engine = ratingEngines.get(season.getRatingAlgorithm());
+        InitialRating initial = engine.initialRating();
         for (List<UUID> uuids : teamIdToPlayers.values()) {
             for (UUID uuid : uuids) {
-                eloMapper.upsertPlayerSeasonElo(uuid, seasonId,
-                        eloProperties.startingElo(), eloProperties.mu(), eloProperties.sigma());
+                eloMapper.upsertPlayerSeasonElo(uuid, seasonId, initial.elo(), initial.mu(), initial.sigma());
             }
         }
 
@@ -59,30 +66,24 @@ public class EloRecomputeService {
         }
         log.debug("Loaded rating snapshots for {} player(s) in seasonId={}", snapshots.size(), seasonId);
 
-        List<TeamRatingContext> teamContexts = new ArrayList<>();
+        List<TeamRatingInput> inputs = new ArrayList<>();
         for (Team team : teams) {
             List<UUID> members = teamIdToPlayers.getOrDefault(team.getId(), List.of());
             if (members.isEmpty()) {
                 continue;
             }
-            List<PlayerRating> ratings = members.stream()
-                    .map(uuid -> {
-                        PlayerEloSnapshot s = snapshots.get(uuid);
-                        return new PlayerRating(uuid, s.getMu(), s.getSigma());
-                    })
-                    .toList();
-            teamContexts.add(new TeamRatingContext(team.getId(), team.getScore(), ratings));
+            inputs.add(new TeamRatingInput(team.getId(), team.getScore(), members.stream().map(snapshots::get).toList()));
         }
 
-        Map<UUID, PlayerRating> newRatings = ratingService.rate(teamContexts);
+        Map<UUID, RatingResult> results = engine.rateMatch(inputs);
 
         for (Team team : teams) {
             for (UUID uuid : teamIdToPlayers.getOrDefault(team.getId(), List.of())) {
-                PlayerRating rating = newRatings.get(uuid);
+                RatingResult rating = results.get(uuid);
                 PlayerEloSnapshot snapshot = snapshots.get(uuid);
-                int newElo = ratingService.displayedElo(rating.mu(), rating.sigma());
-                log.debug("Rating update for uuid={}: elo {} -> {} (mu={}, sigma={})",
-                        uuid, snapshot.getElo(), newElo, rating.mu(), rating.sigma());
+                int newElo = rating.elo();
+                log.debug("Rating update ({}) for uuid={}: elo {} -> {} (mu={}, sigma={})",
+                        engine.algorithm(), uuid, snapshot.getElo(), newElo, rating.mu(), rating.sigma());
 
                 eloMapper.updateElo(uuid, seasonId, newElo, rating.mu(), rating.sigma());
 
@@ -106,8 +107,13 @@ public class EloRecomputeService {
         // Any concurrent markEloDirty blocks until this commits, then re-sets
         // the flag, so the next scheduler pass recomputes again.
         rankedSeasonMapper.clearEloDirty(seasonId);
+        RankedSeason season = rankedSeasonMapper.findById(seasonId)
+                .orElseThrow(() -> new RankedSeasonNotFoundException(seasonId));
+        // REQ-001-06: replay with the season's own rating algorithm
+        InitialRating initial = ratingEngines.get(season.getRatingAlgorithm()).initialRating();
+        log.info("Replaying seasonId={} with {}", seasonId, season.getRatingAlgorithm());
         eloMapper.deleteHistoryBySeasonId(seasonId);
-        eloMapper.resetPlayerSeasonElos(seasonId, eloProperties.startingElo(), eloProperties.mu(), eloProperties.sigma());
+        eloMapper.resetPlayerSeasonElos(seasonId, initial.elo(), initial.mu(), initial.sigma());
 
         List<Match> matches = matchMapper.findByRankedSeasonId(seasonId);
         log.debug("Replaying {} match(es) for seasonId={}", matches.size(), seasonId);
@@ -117,7 +123,7 @@ public class EloRecomputeService {
             for (Team team : teams) {
                 teamIdToPlayers.put(team.getId(), teamPlayerMapper.findPlayerUuidsByTeamId(team.getId()));
             }
-            applyEloUpdates(match.getId(), seasonId, teams, teamIdToPlayers);
+            applyEloUpdates(match.getId(), season, teams, teamIdToPlayers);
         }
         List<UUID> zeroMatchUuids = eloMapper.findUuidsWithNoMatches(seasonId);
         eloMapper.deletePlayersWithNoMatches(seasonId);

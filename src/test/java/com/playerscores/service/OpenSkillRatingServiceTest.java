@@ -2,8 +2,13 @@ package com.playerscores.service;
 
 import com.playerscores.config.EloProperties;
 import com.playerscores.dto.PlayerRating;
+import com.playerscores.dto.InitialRating;
 import com.playerscores.dto.TeamRatingContext;
+import com.playerscores.model.RatingAlgorithm;
+import com.playerscores.rating.GoldenRatings;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 import java.util.Map;
@@ -158,5 +163,24 @@ class OpenSkillRatingServiceTest {
         int high = service.displayedElo(28.0, 7.5);
         assertThat(low).isLessThan(mid);
         assertThat(mid).isLessThan(high);
+    }
+
+    // --- RatingEngine (spec 001) ---
+
+    /** Production constants (ordinal scale 10), the ones golden-openskill.json was generated with. */
+    private final OpenSkillRatingService production = new OpenSkillRatingService(
+            new EloProperties(100, 1000, 10, MU, SIGMA, BETA, 0.0001, 0.0));
+
+    @Test
+    void engineIdentity_REQ_001_09() {
+        assertThat(production.algorithm()).isEqualTo(RatingAlgorithm.OPENSKILL);
+        assertThat(production.initialRating()).isEqualTo(new InitialRating(1000, MU, SIGMA));
+    }
+
+    /** REQ-001-09: the engine wrapper gives exactly the values the code produced before spec 001. */
+    @ParameterizedTest
+    @MethodSource("com.playerscores.rating.GoldenRatings#sequenceNames")
+    void rateMatch_matchesValuesFromBeforeSpec001_REQ_001_09(String sequence) {
+        GoldenRatings.assertEngineMatchesGolden(production, "rating/golden-openskill.json", sequence, true);
     }
 }

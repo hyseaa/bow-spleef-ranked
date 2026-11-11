@@ -13,4 +13,5 @@ public class RankedSeason {
     private String gameType;
     private boolean active;
     private boolean eloDirty;
+    private RatingAlgorithm ratingAlgorithm;
 }

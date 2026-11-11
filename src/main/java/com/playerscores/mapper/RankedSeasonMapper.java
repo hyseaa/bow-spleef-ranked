@@ -14,18 +14,18 @@ import java.util.Optional;
 @Mapper
 public interface RankedSeasonMapper {
 
-    @Insert("INSERT INTO ranked_season (name, starts_at, game_type, active) " +
-            "VALUES (#{name}, #{startsAt}, #{gameType}, #{active})")
+    @Insert("INSERT INTO ranked_season (name, starts_at, game_type, active, rating_algorithm) " +
+            "VALUES (#{name}, #{startsAt}, #{gameType}, #{active}, #{ratingAlgorithm})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(RankedSeason season);
 
-    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty FROM ranked_season WHERE id = #{id}")
+    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty, rating_algorithm FROM ranked_season WHERE id = #{id}")
     Optional<RankedSeason> findById(Long id);
 
-    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty FROM ranked_season ORDER BY id DESC")
+    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty, rating_algorithm FROM ranked_season ORDER BY id DESC")
     List<RankedSeason> findAll();
 
-    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty FROM ranked_season " +
+    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty, rating_algorithm FROM ranked_season " +
             "WHERE active = TRUE AND game_type = #{gameType}")
     Optional<RankedSeason> findActiveByGameType(String gameType);
 
@@ -38,6 +38,6 @@ public interface RankedSeasonMapper {
     @Update("UPDATE ranked_season SET elo_dirty = FALSE WHERE id = #{id}")
     void clearEloDirty(@Param("id") Long id);
 
-    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty FROM ranked_season WHERE elo_dirty = TRUE")
+    @Select("SELECT id, name, starts_at, ends_at, game_type, active, elo_dirty, rating_algorithm FROM ranked_season WHERE elo_dirty = TRUE")
     List<RankedSeason> findDirtySeasons();
 }

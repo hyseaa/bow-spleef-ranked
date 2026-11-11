@@ -6,6 +6,7 @@ import com.playerscores.exception.ActiveSeasonAlreadyExistsException;
 import com.playerscores.exception.RankedSeasonNotFoundException;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.model.RankedSeason;
+import com.playerscores.model.RatingAlgorithm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class RankedSeasonService {
         season.setStartsAt(OffsetDateTime.now());
         season.setGameType(request.gameType());
         season.setActive(true);
+        season.setRatingAlgorithm(RatingAlgorithm.OPENSKILL);
         rankedSeasonMapper.insert(season);
         log.info("Ranked season created: id={}, name={}, gameType={}", season.getId(), season.getName(), season.getGameType());
         return toResponse(season);
@@ -85,7 +87,8 @@ public class RankedSeasonService {
                 season.getStartsAt(),
                 season.getEndsAt(),
                 season.getGameType(),
-                season.isActive()
+                season.isActive(),
+                season.getRatingAlgorithm()
         );
     }
 }

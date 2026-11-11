@@ -5,8 +5,10 @@ import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.DuelChallengeResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.exception.DuelChallengeForbiddenException;
+import com.playerscores.exception.DuelChallengeNotPendingException;
 import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.InvalidTeamSizeException;
+import com.playerscores.exception.NoActiveRankedSeasonException;
 import com.playerscores.exception.PlayerNotInPartyException;
 import com.playerscores.mapper.DuelChallengeMapper;
 import com.playerscores.mapper.DuelChallengeParticipantMapper;
@@ -266,8 +268,10 @@ class DuelChallengeServiceTest {
                 participant(CHALLENGER_MATE, DuelChallengeParticipant.SIDE_CHALLENGER),
                 participant(CHALLENGED, DuelChallengeParticipant.SIDE_CHALLENGED),
                 participant(CHALLENGED_MATE, DuelChallengeParticipant.SIDE_CHALLENGED)));
+        when(duelChallengeMapper.updateStatus(7L, "REPORTED", "CONFIRMING")).thenReturn(1);
         when(matchService.createMatch(any())).thenReturn(new MatchResponse(
                 42L, "DUEL_2V2", "Duel 2v2", "discord_bot", OffsetDateTime.now(), List.of(), 1L, null));
+        when(duelChallengeMapper.setMatchId(7L, 42L)).thenReturn(1);
 
         DuelChallengeResponse response = duelChallengeService.confirmScores(7L, "d-challenged");
 
@@ -285,6 +289,51 @@ class DuelChallengeServiceTest {
         assertThat(matchRequest.teams().get(1).score()).isEqualTo(3);
         assertThat(matchRequest.teams().get(1).playerUuids())
                 .containsExactlyInAnyOrder(CHALLENGED, CHALLENGED_MATE);
+    }
+
+    @Test
+    void confirmScores_claimLost_throwsAndSkipsCreateMatch() {
+        DuelChallenge challenge = new DuelChallenge();
+        challenge.setId(7L);
+        challenge.setChallengerUuid(CHALLENGER);
+        challenge.setChallengedUuid(CHALLENGED);
+        challenge.setGameType("DUEL_1V1");
+        challenge.setStatus("REPORTED");
+        challenge.setReporterUuid(CHALLENGER);
+        challenge.setScoreChallenger(5);
+        challenge.setScoreChallenged(3);
+        when(duelChallengeMapper.findById(7L)).thenReturn(Optional.of(challenge));
+        stubPlayer("d-challenged", CHALLENGED);
+        // Another confirm call already won the CAS (or the status moved on) between the read and the claim
+        when(duelChallengeMapper.updateStatus(7L, "REPORTED", "CONFIRMING")).thenReturn(0);
+
+        assertThatThrownBy(() -> duelChallengeService.confirmScores(7L, "d-challenged"))
+                .isInstanceOf(DuelChallengeNotPendingException.class);
+        verify(matchService, never()).createMatch(any());
+        verify(duelChallengeMapper, never()).setMatchId(any(), any());
+    }
+
+    @Test
+    void confirmScores_createMatchThrows_revertsClaimToReported() {
+        DuelChallenge challenge = new DuelChallenge();
+        challenge.setId(7L);
+        challenge.setChallengerUuid(CHALLENGER);
+        challenge.setChallengedUuid(CHALLENGED);
+        challenge.setGameType("DUEL_1V1");
+        challenge.setStatus("REPORTED");
+        challenge.setReporterUuid(CHALLENGER);
+        challenge.setScoreChallenger(5);
+        challenge.setScoreChallenged(3);
+        when(duelChallengeMapper.findById(7L)).thenReturn(Optional.of(challenge));
+        stubPlayer("d-challenged", CHALLENGED);
+        when(duelChallengeMapper.updateStatus(7L, "REPORTED", "CONFIRMING")).thenReturn(1);
+        when(matchService.createMatch(any())).thenThrow(new NoActiveRankedSeasonException());
+
+        assertThatThrownBy(() -> duelChallengeService.confirmScores(7L, "d-challenged"))
+                .isInstanceOf(NoActiveRankedSeasonException.class);
+
+        verify(duelChallengeMapper).updateStatus(7L, "CONFIRMING", "REPORTED");
+        verify(duelChallengeMapper, never()).setMatchId(any(), any());
     }
 
     @Test

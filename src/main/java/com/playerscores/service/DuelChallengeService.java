@@ -233,7 +233,13 @@ public class DuelChallengeService {
         if (confirmerUuid.equals(challenge.getReporterUuid())) {
             throw new DuelChallengeForbiddenException("The reporter cannot confirm their own score report");
         }
-        if (!"REPORTED".equals(challenge.getStatus())) {
+
+        // Atomic claim: only one of two racing confirm calls can win this CAS. CONFIRMING must
+        // never be committed independently of this method (no REQUIRES_NEW / separate transaction) -
+        // it only ever exists inside this still-open transaction, so a crash mid-method rolls it
+        // back to REPORTED automatically; a thrown exception below reverts it explicitly.
+        int claimed = duelChallengeMapper.updateStatus(id, "REPORTED", "CONFIRMING");
+        if (claimed == 0) {
             throw new DuelChallengeNotPendingException(id, challenge.getStatus());
         }
 
@@ -248,8 +254,20 @@ public class DuelChallengeService {
                 ),
                 null
         );
-        MatchResponse match = matchService.createMatch(matchRequest);
-        duelChallengeMapper.setMatchId(id, match.id());
+        MatchResponse match;
+        try {
+            match = matchService.createMatch(matchRequest);
+        } catch (RuntimeException e) {
+            duelChallengeMapper.updateStatus(id, "CONFIRMING", "REPORTED");
+            throw e;
+        }
+
+        int completed = duelChallengeMapper.setMatchId(id, match.id());
+        if (completed == 0) {
+            log.error("Duel challenge {} was in CONFIRMING but setMatchId affected 0 rows (matchId={}) - invariant violated",
+                    id, match.id());
+            throw new IllegalStateException("Duel challenge " + id + " lost its CONFIRMING claim unexpectedly");
+        }
 
         log.info("Duel challenge completed: id={}, matchId={}", id, match.id());
         challenge.setStatus("COMPLETED");

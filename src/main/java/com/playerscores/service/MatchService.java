@@ -64,6 +64,13 @@ public class MatchService {
     private final RankedSeasonMapper rankedSeasonMapper;
     private final MatchWebhookClient matchWebhookClient;
 
+    /**
+     * No idempotency protection here - a repeated call inserts a new match every time. This is
+     * currently safe because the only live caller, {@code DuelChallengeService#confirmScores},
+     * guarantees at most one call per duel challenge via a compare-and-swap claim on the
+     * challenge's status. Any new caller of this method must bring its own duplicate-submission
+     * guard (idempotency key, unique constraint, etc.) rather than relying on this method for one.
+     */
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request) {
         log.info("Creating match: gameType={}, teams={}", request.gameType(), request.teams().size());

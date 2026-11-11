@@ -51,8 +51,8 @@ public interface DuelChallengeMapper {
     int clearReportedScores(@Param("id") Long id);
 
     @Update("UPDATE duel_challenge SET match_id = #{matchId}, status = 'COMPLETED' " +
-            "WHERE id = #{id}")
-    void setMatchId(@Param("id") Long id, @Param("matchId") Long matchId);
+            "WHERE id = #{id} AND status = 'CONFIRMING'")
+    int setMatchId(@Param("id") Long id, @Param("matchId") Long matchId);
 
     @Delete("DELETE FROM duel_challenge WHERE status = 'PENDING' AND expires_at < NOW()")
     int deleteExpired();

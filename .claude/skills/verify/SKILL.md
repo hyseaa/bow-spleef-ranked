@@ -25,6 +25,6 @@ description: Recette pour lancer et vérifier l'API player-scores de bout en bou
 
 ## Pièges
 
-- Le webhook (`webhook.url` vers backend.ranked.bowspleef.net) est injoignable en dev : chaque `POST /matches` ranked et chaque recompute attend ~20s avant l'erreur (attrapée, sans conséquence). Prévoir des timeouts HTTP ≥ 120s.
+- Le webhook (`webhook.url` vers backend.ranked.bowspleef.net) est injoignable en dev : l'envoi échoue en arrière-plan après le commit (connexion 3 s, lecture 10 s) et est seulement journalisé : la requête n'attend plus (KI-07 corrigé). Prévoir des timeouts HTTP ≥ 120s.
 - Au premier boot après une migration qui pose `elo_dirty`, le scheduler recompute les saisons (~1s pour 130 matchs) — attendre la ligne "ELO recompute complete" avant de mesurer des elos.
 - Nettoyer les données de test à la fin (matchs, saison, game types, joueurs `verif-%`) : les FK cascade depuis `match` et `duel_challenge`.

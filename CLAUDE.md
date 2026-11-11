@@ -1,60 +1,14 @@
-# API - Player Scores
+# Bow Spleef Ranked — API
 
-API REST Spring Boot pour enregistrer et consulter des scores de joueurs.
+Ranked API for Hypixel Bow Spleef played through Discord: players, verification, matches, OpenSkill ratings, seasons, rank titles, queue, duel challenges, parties. Its only client is the Discord bot (`../bot`).
 
-## Stack
-- Java 21, Spring Boot 3.x
-- Maven
-- PostgreSQL
-- MyBatis (mybatis-spring-boot-starter) pour l'accès aux données
-- Flyway pour les migrations de base de données
-- Swagger / OpenAPI (springdoc-openapi)
-- Docker Compose pour l'environnement local
-- JUnit 5 + Mockito pour les tests
+**Documentation and decisions live in the parent workspace** (`../`, its own git repository): read `../AGENTS.md` first — golden rules, workflow, conventions and the documentation index. API reference: `../docs/api/`; bot ↔ API contract: `../docs/architecture/integration.md`; decisions: `../docs/architecture/adr/`; latest context: the newest file in `../docs/journal/`.
 
-## Commandes
+If `../AGENTS.md` is missing, this repository was cloned on its own: clone the workspace repository first and put this one in its `api/` folder.
 
-```bash
-# Lancer l'environnement local (PostgreSQL)
-docker compose up -d
-
-# Compiler
-./mvnw clean package
-
-# Lancer l'API
-./mvnw spring-boot:run
-
-# Tests
-./mvnw test
-
-# Swagger UI (une fois l'API démarrée)
-# http://localhost:8080/swagger-ui.html
-```
-
-## Architecture
-- `controller/` — endpoints REST
-- `service/` — logique métier
-- `mapper/` — interfaces MyBatis (accès données)
-- `model/` — POJOs représentant les données
-- `dto/` — objets de transfert (request/response)
-- `resources/mapper/` — fichiers XML de requêtes SQL
-
-## Conventions
-- Utiliser des DTOs distincts des modèles
-- Les services ne retournent jamais des modèles directement (toujours des DTOs)
-- Les DTOs sont des `record` Java — immuables, pas de Lombok
-- Nommage des DTOs : `*Request` pour les entrées HTTP, `*Response` pour les sorties HTTP
-- Les requêtes SQL simples en annotation `@Select`/`@Insert`/etc., les complexes (SQL dynamique) via `@SelectProvider`
-- Les migrations Flyway sont dans `resources/db/migration/` avec la convention `V{version}__{description}.sql` (ex: `V1__create_players.sql`)
-- Tests unitaires : Mockito pur (pas de Spring context) ; tests d'intégration : hériter de `AbstractIntegrationTest` (Testcontainers PostgreSQL)
-- Nommage : camelCase pour les champs Java, snake_case pour les colonnes SQL
-- Endpoints en kebab-case : `/api/v1/player-scores`
-
-## Variables d'environnement
-Définies dans `docker-compose.yml` et `application.properties` :
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-- `SPRING_DATASOURCE_URL`
-
-## À ne pas faire
-- Ne pas exposer les entités JPA directement dans les réponses HTTP
-- Ne pas committer de secrets ou mots de passe réels
+## Quick reference
+- Java 21, Spring Boot 3.3, Maven wrapper, MyBatis (annotations, no XML), Flyway, PostgreSQL 16, springdoc.
+- Build and test: `./mvnw verify` (Checkstyle in `validate`; integration tests need Docker). One class: `./mvnw test -Dtest=MatchServiceTest`.
+- Run: `docker compose up -d postgres`, load `.env` into the shell, `./mvnw spring-boot:run` (details: `../docs/api/operations.md`, or the `verify` skill).
+- Never edit a released migration (next: see `../docs/api/domain-model.md`). Never rename an error `code`.
+- Commits: English, `feat(NNN): …` / `fix(KI-NN): …` / `docs: …`, referencing the spec, issue or ADR.

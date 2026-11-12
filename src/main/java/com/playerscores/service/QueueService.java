@@ -6,6 +6,7 @@ import com.playerscores.dto.QueueResponse;
 import com.playerscores.dto.QueuedPlayerInfo;
 import com.playerscores.exception.NoActiveRankedSeasonException;
 import com.playerscores.exception.PlayerNotFoundException;
+import com.playerscores.exception.QueueTeamGameTypeException;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.PlayerMapper;
 import com.playerscores.mapper.PlayerStatsMapper;
@@ -43,6 +44,15 @@ public class QueueService {
     @Transactional
     public QueueResponse join(String discordId, String gameType) {
         log.info("Player joining queue: discordId={}, gameType={}", discordId, gameType);
+
+        // KI-03: a queue match becomes a 1v1 duel, which a team game type cannot be; matchmaking for teams is
+        // a later project.
+        gameTypeMapper.findByName(gameType).ifPresent(gt -> {
+            if (gt.getTeamSize() > 1) {
+                log.warn("Queue join refused: gameType={} has teamSize={}", gameType, gt.getTeamSize());
+                throw new QueueTeamGameTypeException(gameType, gt.getTeamSize());
+            }
+        });
 
         Player player = playerMapper.findByDiscordId(discordId)
                 .orElseThrow(() -> {

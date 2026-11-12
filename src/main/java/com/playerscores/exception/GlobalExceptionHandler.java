@@ -81,6 +81,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_TEAM_SIZE", ex.getMessage());
     }
 
+    @ExceptionHandler(QueueTeamGameTypeException.class)
+    public ProblemDetail handleQueueTeamGameType(QueueTeamGameTypeException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "QUEUE_TEAM_GAME_TYPE_NOT_SUPPORTED", ex.getMessage());
+    }
+
     @ExceptionHandler(DuplicatePlayerInMatchException.class)
     public ProblemDetail handleDuplicatePlayer(DuplicatePlayerInMatchException ex) {
         return problem(HttpStatus.BAD_REQUEST, "DUPLICATE_PLAYER", ex.getMessage());

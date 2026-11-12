@@ -6,6 +6,7 @@ import com.playerscores.dto.VerifiedPlayerResponse;
 import com.playerscores.dto.VerifyRequest;
 import com.playerscores.exception.DiscordMismatchException;
 import com.playerscores.exception.MojangUsernameNotFoundException;
+import com.playerscores.exception.UpstreamUnavailableException;
 import com.playerscores.exception.VerificationException;
 import com.playerscores.mapper.PlayerMapper;
 import com.playerscores.model.Player;
@@ -47,6 +48,25 @@ class VerificationServiceTest {
         VerifyRequest req = new VerifyRequest("123", "Notch", "Unknown");
         assertThatThrownBy(() -> verificationService.verify(req))
                 .isInstanceOf(MojangUsernameNotFoundException.class);
+    }
+
+    /** KI-21: a Mojang or Hypixel failure is not reported as a problem with the player's profile. */
+    @Test
+    void verify_mojangUnavailable_propagatesInsteadOfSayingTheNameIsUnknown_KI_21() {
+        when(mojangClient.getUuidByUsername("Notch")).thenThrow(new UpstreamUnavailableException("Mojang", null));
+
+        assertThatThrownBy(() -> verificationService.verify(new VerifyRequest("123", "Notch", "Notch")))
+                .isInstanceOf(UpstreamUnavailableException.class);
+    }
+
+    @Test
+    void verify_hypixelUnavailable_propagatesInsteadOfSayingNoDiscordIsLinked_KI_21() {
+        UUID uuid = UUID.randomUUID();
+        when(mojangClient.getUuidByUsername("Notch")).thenReturn(uuid);
+        when(hypixelClient.getLinkedDiscord(uuid)).thenThrow(new UpstreamUnavailableException("Hypixel", null));
+
+        assertThatThrownBy(() -> verificationService.verify(new VerifyRequest("123", "Notch", "Notch")))
+                .isInstanceOf(UpstreamUnavailableException.class);
     }
 
     @Test

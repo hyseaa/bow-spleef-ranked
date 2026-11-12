@@ -1,7 +1,9 @@
 package com.playerscores.client;
 
+import com.playerscores.exception.UpstreamUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -37,6 +39,11 @@ public class MojangClient {
         }
     }
 
+    /**
+     * The UUID of a Minecraft username, or null when Mojang does not know it.
+     *
+     * @throws UpstreamUnavailableException when Mojang could not answer (outage, rate limit)
+     */
     public UUID getUuidByUsername(String username) {
         log.debug("Fetching Mojang UUID for username={}", username);
         try {
@@ -52,9 +59,14 @@ public class MojangClient {
                     "(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5"));
             log.debug("Resolved uuid={} for username={}", uuid, username);
             return uuid;
-        } catch (RestClientException e) {
-            log.error("Mojang API request failed for username={}: {}", username, e.getMessage(), e);
+        } catch (HttpClientErrorException.NotFound e) {
+            // Mojang answers 404 for a name that does not exist: a normal answer, not a failure
+            log.warn("Mojang does not know username={}", username);
             return null;
+        } catch (RestClientException e) {
+            // outage, rate limit: the player is not at fault (KI-21)
+            log.error("Mojang API request failed for username={}: {}", username, e.getMessage(), e);
+            throw new UpstreamUnavailableException("Mojang", e);
         }
     }
 

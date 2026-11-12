@@ -24,6 +24,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "MATCH_NOT_FOUND", ex.getMessage());
     }
 
+    @ExceptionHandler(UpstreamUnavailableException.class)
+    public ProblemDetail handleUpstreamUnavailable(UpstreamUnavailableException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "UPSTREAM_UNAVAILABLE", ex.getMessage());
+    }
+
     @ExceptionHandler(MojangUsernameNotFoundException.class)
     public ProblemDetail handleMojangNotFound(MojangUsernameNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "MINECRAFT_USERNAME_NOT_FOUND", ex.getMessage());

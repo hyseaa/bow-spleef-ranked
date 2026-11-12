@@ -3,6 +3,7 @@ package com.playerscores.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.VerifiedPlayerResponse;
 import com.playerscores.dto.VerifyRequest;
+import com.playerscores.exception.UpstreamUnavailableException;
 import com.playerscores.exception.VerificationException;
 import com.playerscores.service.VerificationService;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,18 @@ class VerificationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void verify_upstreamUnavailable_returns503WithItsCode_KI_21() throws Exception {
+        VerifyRequest req = new VerifyRequest("123456789", "Notch", "Notch");
+        when(verificationService.verify(any())).thenThrow(new UpstreamUnavailableException("Hypixel", null));
+
+        mockMvc.perform(post("/api/v1/players/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_UNAVAILABLE"));
     }
 
     @Test

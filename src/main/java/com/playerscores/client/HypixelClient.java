@@ -1,6 +1,7 @@
 package com.playerscores.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.playerscores.exception.UpstreamUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,12 @@ public class HypixelClient {
         this.apiKey = apiKey;
     }
 
+    /**
+     * The Discord username linked on the player's Hypixel profile, or null when there is none (or the player has
+     * never joined Hypixel).
+     *
+     * @throws UpstreamUnavailableException when Hypixel could not answer
+     */
     public String getLinkedDiscord(UUID uuid) {
         log.debug("Fetching Hypixel player data for uuid={}", uuid);
         try {
@@ -46,8 +53,9 @@ public class HypixelClient {
             }
             return discord;
         } catch (RestClientException e) {
+            // outage, rate limit, missing or invalid API key: the player is not at fault (KI-21)
             log.error("Hypixel API request failed for uuid={}: {}", uuid, e.getMessage(), e);
-            return null;
+            throw new UpstreamUnavailableException("Hypixel", e);
         }
     }
 

@@ -4,6 +4,7 @@ import com.playerscores.config.WebhookProperties;
 import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.MatchWebhookPayload;
 import com.playerscores.dto.RankSnapshotPayload;
+import com.playerscores.dto.SeasonDeactivatedPayload;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +85,13 @@ public class MatchWebhookClient {
             return;
         }
         afterCommit(() -> post(payload, "Duel-cancelled webhook failed: duelId=" + payload.duelId()));
+    }
+
+    public void notifySeasonDeactivated(SeasonDeactivatedPayload payload) {
+        if (!properties.enabled()) {
+            return;
+        }
+        afterCommit(() -> post(payload, "Season-deactivated webhook failed: seasonId=" + payload.seasonId()));
     }
 
     private void afterCommit(Runnable send) {

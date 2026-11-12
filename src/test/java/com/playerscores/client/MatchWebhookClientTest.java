@@ -5,6 +5,7 @@ import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.MatchWebhookPayload;
 import com.playerscores.dto.RankSnapshotPayload;
+import com.playerscores.dto.SeasonDeactivatedPayload;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -149,11 +150,45 @@ class MatchWebhookClientTest {
         server.verify();
     }
 
+    @Test
+    void seasonDeactivatedIsSentWithItsEventSeasonAndGameType_REQ_005_04() {
+        server.expect(requestTo(URL)).andExpect(method(POST)).andExpect(header("Authorization", "Bearer secret"))
+                .andExpect(jsonPath("$.event").value("SEASON_DEACTIVATED"))
+                .andExpect(jsonPath("$.seasonId").value(2))
+                .andExpect(jsonPath("$.gameType").value("bowspleef_duel_ranked"))
+                .andRespond(withSuccess());
+
+        client(true).notifySeasonDeactivated(new SeasonDeactivatedPayload(2L, "bowspleef_duel_ranked"));
+
+        server.verify();
+    }
+
+    @Test
+    void seasonDeactivatedIsNotSentBeforeCommitNorAfterARollback_REQ_005_04() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        client(true).notifySeasonDeactivated(new SeasonDeactivatedPayload(2L, "gt"));
+        assertThat(executed).as("nothing before the commit").isEmpty();
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+        assertThat(executed).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void seasonDeactivatedIsNotSentWhenTheWebhookIsDisabled_REQ_005_04() {
+        client(false).notifySeasonDeactivated(new SeasonDeactivatedPayload(2L, "gt"));
+
+        assertThat(executed).isEmpty();
+        server.verify();
+    }
+
     private static MatchWebhookPayload match() {
         return new MatchWebhookPayload(new MatchResponse(1L, "gt", "GT", "test", null, List.of(), 1L, null), List.of());
     }
 
     private static RankSnapshotPayload ranks() {
-        return new RankSnapshotPayload("RANKS_UPDATED", 1L, List.of());
+        return new RankSnapshotPayload("RANKS_UPDATED", 1L, "gt", true, List.of());
     }
 }

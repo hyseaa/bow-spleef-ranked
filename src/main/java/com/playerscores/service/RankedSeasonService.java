@@ -1,7 +1,9 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.RankedSeasonRequest;
 import com.playerscores.dto.RankedSeasonResponse;
+import com.playerscores.dto.SeasonDeactivatedPayload;
 import com.playerscores.exception.ActiveSeasonAlreadyExistsException;
 import com.playerscores.exception.RankedSeasonNotFoundException;
 import com.playerscores.mapper.RankedSeasonMapper;
@@ -22,6 +24,7 @@ import java.util.List;
 public class RankedSeasonService {
 
     private final RankedSeasonMapper rankedSeasonMapper;
+    private final MatchWebhookClient matchWebhookClient;
 
     @Transactional
     public RankedSeasonResponse createSeason(RankedSeasonRequest request) {
@@ -45,6 +48,12 @@ public class RankedSeasonService {
     @Transactional
     public RankedSeasonResponse deactivateSeason(Long id) {
         log.info("Deactivating ranked season: id={}", id);
+        // Read first: the bot is told only when the season really was active (spec 005). A repeated deactivation
+        // must not make it remove the roles of a newer season of the same game type.
+        RankedSeason before = rankedSeasonMapper.findById(id).orElseThrow(() -> {
+            log.warn("Cannot deactivate season: not found for id={}", id);
+            return new RankedSeasonNotFoundException(id);
+        });
         if (rankedSeasonMapper.deactivate(id) == 0) {
             log.warn("Cannot deactivate season: not found for id={}", id);
             throw new RankedSeasonNotFoundException(id);
@@ -53,6 +62,9 @@ public class RankedSeasonService {
                 .map(this::toResponse)
                 .orElseThrow(() -> new RankedSeasonNotFoundException(id));
         log.info("Ranked season deactivated: id={}", id);
+        if (before.isActive()) {
+            matchWebhookClient.notifySeasonDeactivated(new SeasonDeactivatedPayload(id, before.getGameType()));
+        }
         return response;
     }
 

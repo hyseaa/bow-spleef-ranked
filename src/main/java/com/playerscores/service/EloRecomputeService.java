@@ -131,11 +131,12 @@ public class EloRecomputeService {
         eloMapper.updateRankTitlesBySeason(seasonId);
         log.info("ELO recompute complete for seasonId={}, {} match(es) replayed", seasonId, matches.size());
 
-        RankSnapshotPayload snapshot = buildRankSnapshot(seasonId, zeroMatchUuids);
+        RankSnapshotPayload snapshot = buildRankSnapshot(season, zeroMatchUuids);
         matchWebhookClient.notifyRanksUpdated(snapshot);
     }
 
-    private RankSnapshotPayload buildRankSnapshot(Long seasonId, List<UUID> zeroMatchUuids) {
+    private RankSnapshotPayload buildRankSnapshot(RankedSeason season, List<UUID> zeroMatchUuids) {
+        Long seasonId = season.getId();
         List<PlayerEloSnapshot> activeSnapshots = eloMapper.findAllEloBySeasonId(seasonId);
         List<UUID> allUuids = new ArrayList<>();
         activeSnapshots.forEach(s -> allUuids.add(s.getPlayerUuid()));
@@ -153,7 +154,7 @@ public class EloRecomputeService {
             String title = rankTitleByUuid.get(entry.getKey());
             playerRanks.add(new PlayerRankEntry(entry.getValue(), title));
         }
-        return new RankSnapshotPayload("RANKS_UPDATED", seasonId, playerRanks);
+        return new RankSnapshotPayload("RANKS_UPDATED", seasonId, season.getGameType(), season.isActive(), playerRanks);
     }
 
 }

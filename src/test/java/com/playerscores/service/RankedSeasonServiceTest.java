@@ -1,7 +1,10 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.RankedSeasonRequest;
 import com.playerscores.dto.RankedSeasonResponse;
+import com.playerscores.dto.SeasonDeactivatedPayload;
+import com.playerscores.exception.RankedSeasonNotFoundException;
 import com.playerscores.mapper.RankedSeasonMapper;
 import com.playerscores.model.RankedSeason;
 import com.playerscores.model.RatingAlgorithm;
@@ -16,6 +19,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +32,8 @@ class RankedSeasonServiceTest {
 
     @Mock
     private RankedSeasonMapper rankedSeasonMapper;
+    @Mock
+    private MatchWebhookClient matchWebhookClient;
 
     @InjectMocks
     private RankedSeasonService rankedSeasonService;
@@ -50,6 +60,47 @@ class RankedSeasonServiceTest {
         RankedSeasonResponse response = rankedSeasonService.deactivateSeason(1L);
 
         assertThat(response.ratingAlgorithm()).isEqualTo(RatingAlgorithm.CLASSIC_ELO);
+    }
+
+    /** REQ-005-04: deactivating an active season tells the bot, once, with the season's game type. */
+    @Test
+    void deactivate_anActiveSeason_tellsTheBotOnce_REQ_005_04() {
+        when(rankedSeasonMapper.findById(1L)).thenReturn(
+                Optional.of(season(1L, RatingAlgorithm.OPENSKILL, true)),
+                Optional.of(season(1L, RatingAlgorithm.OPENSKILL, false)));
+        when(rankedSeasonMapper.deactivate(1L)).thenReturn(1);
+
+        rankedSeasonService.deactivateSeason(1L);
+
+        ArgumentCaptor<SeasonDeactivatedPayload> payload = ArgumentCaptor.forClass(SeasonDeactivatedPayload.class);
+        verify(matchWebhookClient, times(1)).notifySeasonDeactivated(payload.capture());
+        assertThat(payload.getValue().event()).isEqualTo("SEASON_DEACTIVATED");
+        assertThat(payload.getValue().seasonId()).isEqualTo(1L);
+        assertThat(payload.getValue().gameType()).isEqualTo("bowspleef_1v1");
+    }
+
+    /**
+     * REQ-005-04: deactivating a season that was already inactive sends nothing: the bot would otherwise remove the
+     * roles of a newer season of the same game type.
+     */
+    @Test
+    void deactivate_anAlreadyInactiveSeason_sendsNothing_REQ_005_04() {
+        when(rankedSeasonMapper.findById(1L)).thenReturn(Optional.of(season(1L, RatingAlgorithm.OPENSKILL, false)));
+        when(rankedSeasonMapper.deactivate(1L)).thenReturn(1);
+
+        rankedSeasonService.deactivateSeason(1L);
+
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void deactivate_anUnknownSeason_sendsNothing_REQ_005_04() {
+        when(rankedSeasonMapper.findById(9L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rankedSeasonService.deactivateSeason(9L)).isInstanceOf(RankedSeasonNotFoundException.class);
+
+        verify(rankedSeasonMapper, never()).deactivate(any());
+        verifyNoInteractions(matchWebhookClient);
     }
 
     /** REQ-001-10: every season returned carries its algorithm. */

@@ -2,6 +2,7 @@ package com.playerscores.service;
 
 import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.InitialRating;
+import com.playerscores.dto.RankSnapshotPayload;
 import com.playerscores.dto.RatingResult;
 import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.MatchMapper;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -186,6 +188,30 @@ class EloRecomputeServiceTest {
         team.setId(id);
         team.setScore(score);
         return team;
+    }
+
+    /** REQ-005-11: the ranks-updated snapshot says which game type it is for and whether the season is active. */
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void recomputeSeasonElo_snapshotCarriesTheGameTypeAndWhetherTheSeasonIsActive_REQ_005_11(boolean active) {
+        engine(RatingAlgorithm.OPENSKILL);
+        RankedSeason season = season(9L, RatingAlgorithm.OPENSKILL);
+        season.setGameType("bowspleef_duel_ranked");
+        season.setActive(active);
+        when(rankedSeasonMapper.findById(9L)).thenReturn(Optional.of(season));
+        when(matchMapper.findByRankedSeasonId(9L)).thenReturn(List.of());
+        when(eloMapper.findUuidsWithNoMatches(9L)).thenReturn(List.of());
+        when(eloMapper.findAllEloBySeasonId(9L)).thenReturn(List.of());
+        when(playerMapper.findByUuids(any())).thenReturn(List.of());
+
+        eloRecomputeService.recomputeSeasonElo(9L);
+
+        ArgumentCaptor<RankSnapshotPayload> payload = ArgumentCaptor.forClass(RankSnapshotPayload.class);
+        verify(matchWebhookClient).notifyRanksUpdated(payload.capture());
+        assertThat(payload.getValue().event()).isEqualTo("RANKS_UPDATED");
+        assertThat(payload.getValue().seasonId()).isEqualTo(9L);
+        assertThat(payload.getValue().gameType()).isEqualTo("bowspleef_duel_ranked");
+        assertThat(payload.getValue().seasonActive()).isEqualTo(active);
     }
 
     private static RankedSeason season(Long id, RatingAlgorithm algorithm) {

@@ -11,4 +11,5 @@ public class Match {
     private String source;
     private OffsetDateTime playedAt;
     private Long rankedSeasonId;
+    private String idempotencyKey;
 }

@@ -86,6 +86,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "DUPLICATE_PLAYER", ex.getMessage());
     }
 
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    public ProblemDetail handleIdempotencyKeyReused(IdempotencyKeyReusedException ex) {
+        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", ex.getMessage());
+    }
+
     @ExceptionHandler(PartyNotFoundException.class)
     public ProblemDetail handlePartyNotFound(PartyNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "PARTY_NOT_FOUND", ex.getMessage());

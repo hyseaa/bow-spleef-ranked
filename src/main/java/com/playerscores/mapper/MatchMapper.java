@@ -17,7 +17,7 @@ public interface MatchMapper {
 
     // clock_timestamp(), not NOW(): NOW() is the start of the transaction, and a ranked match must be dated
     // after it has obtained the season lock so that played_at order is the order in which it was rated (KI-28).
-    @Insert("INSERT INTO match (game_type, source, played_at) VALUES (#{gameType}, #{source}, clock_timestamp())")
+    @Insert("INSERT INTO match (game_type, source, played_at, idempotency_key) VALUES (#{gameType}, #{source}, clock_timestamp(), #{idempotencyKey})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Match match);
 
@@ -38,4 +38,15 @@ public interface MatchMapper {
 
     @Select("SELECT id, game_type, source, played_at, ranked_season_id FROM match WHERE ranked_season_id = #{seasonId} ORDER BY played_at ASC, id ASC")
     List<Match> findByRankedSeasonId(@Param("seasonId") Long seasonId);
+
+    @Select("SELECT id, game_type, source, played_at, ranked_season_id, idempotency_key FROM match "
+            + "WHERE source = #{source} AND idempotency_key = #{key}")
+    Optional<Match> findByIdempotencyKey(@Param("source") String source, @Param("key") String key);
+
+    /**
+     * Takes a transaction-scoped advisory lock on (source, key), so that two requests carrying the same
+     * idempotency key are processed one after the other (spec 002). Released at commit or rollback.
+     */
+    @Select("SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended(#{source} || ':' || #{key}, 0))) AS locked")
+    int lockIdempotencyKey(@Param("source") String source, @Param("key") String key);
 }

@@ -14,6 +14,7 @@ import com.playerscores.dto.TeamRequest;
 import com.playerscores.dto.TeamResponse;
 import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.GameTypeNotFoundException;
+import com.playerscores.exception.IdempotencyKeyReusedException;
 import com.playerscores.exception.InvalidTeamSizeException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.exception.NoActiveRankedSeasonException;
@@ -42,6 +43,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -65,14 +67,34 @@ public class MatchService {
     private final MatchWebhookClient matchWebhookClient;
 
     /**
-     * No idempotency protection here - a repeated call inserts a new match every time. This is
-     * currently safe because the only live caller, {@code DuelChallengeService#confirmScores},
-     * guarantees at most one call per duel challenge via a compare-and-swap claim on the
-     * challenge's status. Any new caller of this method must bring its own duplicate-submission
-     * guard (idempotency key, unique constraint, etc.) rather than relying on this method for one.
+     * Records a match with no idempotency key: a repeated call inserts a new match every time. The only
+     * caller, {@code DuelChallengeService#confirmScores}, guarantees at most one call per duel challenge
+     * via a compare-and-swap claim on the challenge's status. A caller that can be retried must use
+     * {@link #recordMatch} with an idempotency key.
      */
     @Transactional
     public MatchResponse createMatch(CreateMatchRequest request) {
+        return recordMatch(request, null).match();
+    }
+
+    /**
+     * Records a match, at most once per {@code (source, idempotencyKey)} (spec 002). With a key, a
+     * transaction-scoped lock serializes concurrent requests carrying it; if a match already holds the key,
+     * it is returned untouched (no rating, history or webhook) when the content is the same, and refused
+     * with {@link IdempotencyKeyReusedException} when it is not. A failure rolls the key back with the match.
+     * Lock order: idempotency lock first, then the season lock (KI-28).
+     *
+     * @param idempotencyKey the caller's key, or null for no protection
+     */
+    @Transactional
+    public MatchRecording recordMatch(CreateMatchRequest request, String idempotencyKey) {
+        if (idempotencyKey != null) {
+            matchMapper.lockIdempotencyKey(request.source(), idempotencyKey);
+            Optional<Match> existing = matchMapper.findByIdempotencyKey(request.source(), idempotencyKey);
+            if (existing.isPresent()) {
+                return replay(existing.get(), request, idempotencyKey);
+            }
+        }
         log.info("Creating match: gameType={}, teams={}", request.gameType(), request.teams().size());
 
         GameType gameType = gameTypeMapper.findByName(request.gameType())
@@ -103,6 +125,7 @@ public class MatchService {
         Match match = new Match();
         match.setGameType(request.gameType());
         match.setSource(request.source());
+        match.setIdempotencyKey(idempotencyKey);
         matchMapper.insert(match);
         log.debug("Match row inserted: id={}", match.getId());
 
@@ -154,7 +177,37 @@ public class MatchService {
         List<UUID> allUuids = teamIdToPlayers.values().stream().flatMap(List::stream).toList();
         List<PlayerRankEntry> playerRanks = buildPlayerRanks(allUuids, match.getRankedSeasonId());
         matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks));
-        return response;
+        return new MatchRecording(response, true);
+    }
+
+    private MatchRecording replay(Match existing, CreateMatchRequest request, String idempotencyKey) {
+        MatchResponse stored = getMatch(existing.getId());
+        if (!stored.gameType().equals(request.gameType()) || !teamsOf(stored).equals(teamsOf(request))) {
+            log.warn("Idempotency key reused with a different match: source={}, key={}, existingMatchId={}",
+                    request.source(), idempotencyKey, existing.getId());
+            throw new IdempotencyKeyReusedException(request.source(), idempotencyKey);
+        }
+        log.info("Idempotent replay: source={}, key={}, matchId={}", request.source(), idempotencyKey, existing.getId());
+        return new MatchRecording(stored, false);
+    }
+
+    /** The teams of a stored match as comparable strings, independent of order. Stats are ignored. */
+    private static List<String> teamsOf(MatchResponse match) {
+        return match.teams().stream()
+                .map(team -> teamKey(team.score(), team.players().stream().map(PlayerSummaryResponse::uuid)))
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> teamsOf(CreateMatchRequest request) {
+        return request.teams().stream()
+                .map(team -> teamKey(team.score(), team.playerUuids().stream()))
+                .sorted()
+                .toList();
+    }
+
+    private static String teamKey(Integer score, java.util.stream.Stream<UUID> players) {
+        return score + ":" + players.map(UUID::toString).sorted().collect(Collectors.joining(","));
     }
 
     /**

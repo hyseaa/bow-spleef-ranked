@@ -6,7 +6,9 @@ import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.exception.GameTypeNotFoundException;
+import com.playerscores.exception.IdempotencyKeyReusedException;
 import com.playerscores.exception.MatchNotFoundException;
+import com.playerscores.service.MatchRecording;
 import com.playerscores.service.MatchService;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration;
@@ -22,8 +24,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,7 +56,7 @@ class MatchControllerTest {
     @Test
     void createMatch_returns201() throws Exception {
         MatchResponse response = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null, null);
-        when(matchService.createMatch(any())).thenReturn(response);
+        when(matchService.recordMatch(any(), isNull())).thenReturn(new MatchRecording(response, true));
 
         CreateMatchRequest request = new CreateMatchRequest("BEDWARS", "DISCORD_BOT",
                 List.of(new TeamRequest(3, List.of(UUID.randomUUID())),
@@ -125,5 +130,74 @@ class MatchControllerTest {
 
         mockMvc.perform(delete("/api/v1/matches/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    private String body() throws Exception {
+        return objectMapper.writeValueAsString(new CreateMatchRequest("BEDWARS", "hysea-server",
+                List.of(new TeamRequest(3, List.of(UUID.randomUUID())),
+                        new TeamRequest(1, List.of(UUID.randomUUID()))),
+                null));
+    }
+
+    private MatchResponse stored() {
+        return new MatchResponse(5L, "BEDWARS", "Bed Wars", "hysea-server", OffsetDateTime.now(), List.of(), null, null);
+    }
+
+    @Test
+    void createMatch_newIdempotencyKey_returns201_REQ_002_01() throws Exception {
+        when(matchService.recordMatch(any(), eq("game-1"))).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "game-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(5));
+    }
+
+    @Test
+    void createMatch_replayedIdempotencyKey_returns200WithTheStoredMatch_REQ_002_02() throws Exception {
+        when(matchService.recordMatch(any(), eq("game-1"))).thenReturn(new MatchRecording(stored(), false));
+
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "game-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5));
+    }
+
+    @Test
+    void createMatch_keyReusedForAnotherMatch_returns409_REQ_002_10() throws Exception {
+        when(matchService.recordMatch(any(), eq("game-1")))
+                .thenThrow(new IdempotencyKeyReusedException("hysea-server", "game-1"));
+
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "game-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+    }
+
+    @Test
+    void createMatch_blankIdempotencyKey_returns400_REQ_002_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "   ")
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(matchService);
+    }
+
+    @Test
+    void createMatch_tooLongIdempotencyKey_returns400_REQ_002_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "k".repeat(101))
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(matchService);
+    }
+
+    @Test
+    void createMatch_keyOfExactlyTheMaximumLength_isAccepted_REQ_002_08() throws Exception {
+        when(matchService.recordMatch(any(), eq("k".repeat(100)))).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "k".repeat(100))
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isCreated());
     }
 }

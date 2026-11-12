@@ -8,6 +8,7 @@ import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
 import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.GameTypeNotFoundException;
+import com.playerscores.exception.IdempotencyKeyReusedException;
 import com.playerscores.exception.InvalidTeamSizeException;
 import com.playerscores.exception.MatchNotFoundException;
 import com.playerscores.mapper.GameTypeMapper;
@@ -23,6 +24,8 @@ import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -30,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,8 +41,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -333,5 +339,182 @@ class MatchServiceTest {
 
         assertThatThrownBy(() -> matchService.deleteMatch(99L))
                 .isInstanceOf(MatchNotFoundException.class);
+    }
+
+    // ---- Idempotency (spec 002) -------------------------------------------------------------------
+
+    private static final String SOURCE = "hysea-server";
+    private static final String KEY = "game-1";
+
+    private GameType casual() {
+        GameType gameType = new GameType();
+        gameType.setName("BEDWARS");
+        gameType.setDisplayName("Bed Wars");
+        gameType.setRanked(false);
+        return gameType;
+    }
+
+    /** Stubs the stored match 7 (key {@link #KEY}) with two teams: (score 3, [a]) and (score 1, [b]). */
+    private void storedMatch(String gameType, UUID a, UUID b) {
+        Match stored = new Match();
+        stored.setId(7L);
+        stored.setGameType(gameType);
+        stored.setSource(SOURCE);
+        stored.setPlayedAt(OffsetDateTime.now());
+        stored.setIdempotencyKey(KEY);
+        when(matchMapper.findByIdempotencyKey(SOURCE, KEY)).thenReturn(Optional.of(stored));
+        when(matchMapper.findById(7L)).thenReturn(Optional.of(stored));
+        Team t1 = new Team();
+        t1.setId(71L);
+        t1.setScore(3);
+        Team t2 = new Team();
+        t2.setId(72L);
+        t2.setScore(1);
+        when(teamMapper.findByMatchId(7L)).thenReturn(List.of(t1, t2));
+        when(teamPlayerMapper.findByTeamId(71L)).thenReturn(List.of(teamPlayer(711L, 71L, a)));
+        when(teamPlayerMapper.findByTeamId(72L)).thenReturn(List.of(teamPlayer(721L, 72L, b)));
+    }
+
+    private TeamPlayer teamPlayer(long id, long teamId, UUID uuid) {
+        TeamPlayer tp = new TeamPlayer();
+        tp.setId(id);
+        tp.setTeamId(teamId);
+        tp.setPlayerUuid(uuid);
+        return tp;
+    }
+
+    private void assertNothingWritten() {
+        verify(matchMapper, never()).insert(any(Match.class));
+        verifyNoInteractions(eloRecomputeService, matchWebhookClient, playerMapper, rankedSeasonMapper);
+    }
+
+    /** Stubs the insert of a new match with the given id and the reads that follow it. */
+    private void newMatchWithId(long id) {
+        doAnswer(inv -> {
+            Match m = inv.getArgument(0);
+            m.setId(id);
+            return null;
+        }).when(matchMapper).insert(any(Match.class));
+        Match created = new Match();
+        created.setId(id);
+        created.setGameType("BEDWARS");
+        when(matchMapper.findById(id)).thenReturn(Optional.of(created));
+    }
+
+    @Test
+    void recordMatch_newKey_storesTheKeyAndCreates_REQ_002_01() {
+        UUID uuid = UUID.randomUUID();
+        when(matchMapper.findByIdempotencyKey(SOURCE, KEY)).thenReturn(Optional.empty());
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        newMatchWithId(1L);
+
+        MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(uuid)), new TeamRequest(1, List.of())), null), KEY);
+
+        assertThat(recording.created()).isTrue();
+        assertThat(recording.match().id()).isEqualTo(1L);
+        ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
+        InOrder order = inOrder(matchMapper);
+        order.verify(matchMapper).lockIdempotencyKey(SOURCE, KEY);
+        order.verify(matchMapper).findByIdempotencyKey(SOURCE, KEY);
+        order.verify(matchMapper).insert(inserted.capture());
+        assertThat(inserted.getValue().getIdempotencyKey()).isEqualTo(KEY);
+    }
+
+    @Test
+    void recordMatch_sameKeySameContent_returnsTheExistingMatchWithoutSideEffect_REQ_002_02_REQ_002_03() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(1, List.of(b))), null), KEY);
+
+        assertThat(recording.created()).isFalse();
+        assertThat(recording.match().id()).isEqualTo(7L);
+        assertThat(recording.match().teams()).hasSize(2);
+        assertNothingWritten();
+        verify(matchMapper).lockIdempotencyKey(SOURCE, KEY);
+    }
+
+    @Test
+    void recordMatch_teamsInAnotherOrderAndOtherStats_isTheSameMatch_REQ_002_10() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(1, List.of(b)), new TeamRequest(3, List.of(a))),
+                Map.of(a, Map.<String, Object>of("kills", 99))), KEY);
+
+        assertThat(recording.created()).isFalse();
+        assertNothingWritten();
+    }
+
+    @Test
+    void recordMatch_sameKeyDifferentScore_isRefused_REQ_002_10() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        assertThatThrownBy(() -> matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(2, List.of(b))), null), KEY))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        assertNothingWritten();
+    }
+
+    @Test
+    void recordMatch_sameKeyDifferentPlayer_isRefused_REQ_002_10() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        assertThatThrownBy(() -> matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(1, List.of(UUID.randomUUID()))), null), KEY))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        assertNothingWritten();
+    }
+
+    @Test
+    void recordMatch_sameKeyDifferentGameType_isRefused_REQ_002_10() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        assertThatThrownBy(() -> matchService.recordMatch(new CreateMatchRequest("SKYWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(1, List.of(b))), null), KEY))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        assertNothingWritten();
+    }
+
+    @Test
+    void recordMatch_sameKeyInAnotherSource_isANewMatch_REQ_002_07() {
+        UUID uuid = UUID.randomUUID();
+        when(matchMapper.findByIdempotencyKey("other", KEY)).thenReturn(Optional.empty());
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        newMatchWithId(2L);
+
+        MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", "other",
+                List.of(new TeamRequest(3, List.of(uuid)), new TeamRequest(1, List.of())), null), KEY);
+
+        assertThat(recording.created()).isTrue();
+        verify(matchMapper).lockIdempotencyKey("other", KEY);
+    }
+
+    @Test
+    void recordMatch_noKey_skipsTheLockAndTheLookup_REQ_002_06() {
+        UUID uuid = UUID.randomUUID();
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        newMatchWithId(3L);
+
+        MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(uuid)), new TeamRequest(1, List.of())), null), null);
+
+        assertThat(recording.created()).isTrue();
+        verify(matchMapper, never()).lockIdempotencyKey(any(), any());
+        verify(matchMapper, never()).findByIdempotencyKey(any(), any());
+        ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
+        verify(matchMapper).insert(inserted.capture());
+        assertThat(inserted.getValue().getIdempotencyKey()).isNull();
     }
 }

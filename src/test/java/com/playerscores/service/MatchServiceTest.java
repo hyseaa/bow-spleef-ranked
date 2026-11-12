@@ -3,6 +3,9 @@ package com.playerscores.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.MatchWebhookPayload;
+import com.playerscores.dto.PlayerEloSnapshot;
+import com.playerscores.dto.PlayerRankEntry;
 import com.playerscores.dto.MatchListResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.TeamRequest;
@@ -11,6 +14,7 @@ import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.IdempotencyKeyReusedException;
 import com.playerscores.exception.InvalidTeamSizeException;
 import com.playerscores.exception.MatchNotFoundException;
+import com.playerscores.mapper.EloMapper;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.MatchMapper;
 import com.playerscores.mapper.MatchPlayerStatMapper;
@@ -20,6 +24,8 @@ import com.playerscores.mapper.TeamMapper;
 import com.playerscores.mapper.TeamPlayerMapper;
 import com.playerscores.model.GameType;
 import com.playerscores.model.Match;
+import com.playerscores.model.Player;
+import com.playerscores.model.RankedSeason;
 import com.playerscores.model.Team;
 import com.playerscores.model.TeamPlayer;
 import org.junit.jupiter.api.Test;
@@ -70,6 +76,8 @@ class MatchServiceTest {
     private UsernameCache usernameCache;
     @Mock
     private MatchWebhookClient matchWebhookClient;
+    @Mock
+    private EloMapper eloMapper;
     @Spy
     private ObjectMapper objectMapper;
 
@@ -516,5 +524,81 @@ class MatchServiceTest {
         ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
         verify(matchMapper).insert(inserted.capture());
         assertThat(inserted.getValue().getIdempotencyKey()).isNull();
+    }
+
+    // ---- KI-06: titles are percentiles, so a ranked match can change other players' titles ----
+
+    private static PlayerEloSnapshot title(UUID uuid, String rankTitle) {
+        PlayerEloSnapshot snapshot = new PlayerEloSnapshot();
+        snapshot.setPlayerUuid(uuid);
+        snapshot.setRankTitle(rankTitle);
+        return snapshot;
+    }
+
+    private static Player verified(UUID uuid, String discordId) {
+        Player player = new Player();
+        player.setUuid(uuid);
+        player.setDiscordId(discordId);
+        return player;
+    }
+
+    @Test
+    void createMatch_ranked_theWebhookAlsoCarriesTheTitlesThatChangedForOtherPlayers_KI_06() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID bystanderChanged = UUID.randomUUID();
+        UUID bystanderSame = UUID.randomUUID();
+        GameType gameType = new GameType();
+        gameType.setName("DUEL");
+        gameType.setDisplayName("Duel");
+        gameType.setRanked(true);
+        gameType.setTeamSize(1);
+        when(gameTypeMapper.findByName("DUEL")).thenReturn(Optional.of(gameType));
+        RankedSeason season = new RankedSeason();
+        season.setId(4L);
+        when(rankedSeasonMapper.lockActiveByGameType("DUEL")).thenReturn(Optional.of(season));
+        doAnswer(inv -> {
+            inv.getArgument(0, Match.class).setId(9L);
+            return null;
+        }).when(matchMapper).insert(any(Match.class));
+        doAnswer(inv -> {
+            inv.getArgument(0, Team.class).setId(100L + inv.getArgument(0, Team.class).getScore());
+            return null;
+        }).when(teamMapper).insert(any(Team.class));
+        doAnswer(inv -> {
+            inv.getArgument(0, TeamPlayer.class).setId(1L);
+            return null;
+        }).when(teamPlayerMapper).insert(any(TeamPlayer.class));
+        Match stored = new Match();
+        stored.setId(9L);
+        stored.setGameType("DUEL");
+        stored.setRankedSeasonId(4L);
+        when(matchMapper.findById(9L)).thenReturn(Optional.of(stored));
+        // the season before the match, then after it: the bystander drops from Silver to Bronze, the other stays Gold
+        when(eloMapper.findAllEloBySeasonId(4L)).thenReturn(
+                List.of(title(a, "Gold"), title(b, "Silver"), title(bystanderChanged, "Silver"), title(bystanderSame, "Gold")),
+                List.of(title(a, "Platinum"), title(b, "Bronze"), title(bystanderChanged, "Bronze"), title(bystanderSame, "Gold")));
+        // like the database, answer only for the players asked about
+        List<Player> everyone = List.of(
+                verified(a, "d-a"), verified(b, "d-b"), verified(bystanderChanged, "d-c"), verified(bystanderSame, "d-d"));
+        when(playerMapper.findByUuids(any())).thenAnswer(inv -> {
+            java.util.Collection<UUID> asked = inv.getArgument(0);
+            return everyone.stream().filter(p -> asked.contains(p.getUuid())).toList();
+        });
+        List<PlayerEloSnapshot> after = List.of(
+                title(a, "Platinum"), title(b, "Bronze"), title(bystanderChanged, "Bronze"), title(bystanderSame, "Gold"));
+        when(eloMapper.findEloByUuidsAndSeason(any(), org.mockito.ArgumentMatchers.eq(4L))).thenAnswer(inv -> {
+            java.util.Collection<UUID> asked = inv.getArgument(0);
+            return after.stream().filter(e -> asked.contains(e.getPlayerUuid())).toList();
+        });
+
+        matchService.createMatch(new CreateMatchRequest("DUEL", "DISCORD_BOT",
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(1, List.of(b))), null));
+
+        ArgumentCaptor<MatchWebhookPayload> payload = ArgumentCaptor.forClass(MatchWebhookPayload.class);
+        verify(matchWebhookClient).notifyMatchResult(payload.capture());
+        assertThat(payload.getValue().getPlayerRanks()).extracting(PlayerRankEntry::discordId)
+                .as("the match's players and the bystander whose title changed, not the one whose title did not")
+                .containsExactlyInAnyOrder("d-a", "d-b", "d-c");
     }
 }

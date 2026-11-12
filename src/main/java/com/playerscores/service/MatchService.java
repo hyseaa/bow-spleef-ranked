@@ -41,8 +41,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -125,6 +127,10 @@ public class MatchService {
             }
         }
 
+        // KI-06: titles are percentiles, so this match can change the title of players who were not in it. Remember
+        // the season's titles now to tell the bot about every one that changed.
+        Map<UUID, String> titlesBefore = season != null ? titlesOfSeason(season.getId()) : Map.of();
+
         Match match = new Match();
         match.setGameType(request.gameType());
         match.setSource(request.source());
@@ -133,6 +139,7 @@ public class MatchService {
         log.debug("Match row inserted: id={}", match.getId());
 
         // teamId → list of player UUIDs (needed for ELO calculation)
+        List<UUID> titleChangedUuids = List.of();
         Map<Long, List<UUID>> teamIdToPlayers = new HashMap<>();
         List<Team> insertedTeams = new ArrayList<>();
 
@@ -173,12 +180,14 @@ public class MatchService {
             log.debug("Applying ELO updates for matchId={}, seasonId={}", match.getId(), season.getId());
             eloRecomputeService.applyEloUpdates(match.getId(), season, insertedTeams, teamIdToPlayers);
             eloMapper.updateRankTitlesBySeason(season.getId());
+            titleChangedUuids = playersWhoseTitleChanged(titlesBefore, titlesOfSeason(season.getId()));
         }
 
         log.info("Match created: id={}, gameType={}, ranked={}", match.getId(), match.getGameType(), gameType.isRanked());
         MatchResponse response = getMatch(match.getId());
-        List<UUID> allUuids = teamIdToPlayers.values().stream().flatMap(List::stream).toList();
-        List<PlayerRankEntry> playerRanks = buildPlayerRanks(allUuids, match.getRankedSeasonId());
+        Set<UUID> reported = new LinkedHashSet<>(teamIdToPlayers.values().stream().flatMap(List::stream).toList());
+        reported.addAll(titleChangedUuids);
+        List<PlayerRankEntry> playerRanks = buildPlayerRanks(new ArrayList<>(reported), match.getRankedSeasonId());
         matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks));
         return new MatchRecording(response, true);
     }
@@ -288,6 +297,22 @@ public class MatchService {
         Map<UUID, Map<String, Object>> stats = playerStats.isEmpty() ? null : playerStats;
         return new MatchResponse(match.getId(), match.getGameType(), displayName,
                 match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats);
+    }
+
+    private Map<UUID, String> titlesOfSeason(Long seasonId) {
+        Map<UUID, String> titles = new HashMap<>();
+        for (PlayerEloSnapshot snapshot : eloMapper.findAllEloBySeasonId(seasonId)) {
+            titles.put(snapshot.getPlayerUuid(), snapshot.getRankTitle());
+        }
+        return titles;
+    }
+
+    /** The players whose title is not what it was before (including a player new to the season). */
+    private static List<UUID> playersWhoseTitleChanged(Map<UUID, String> before, Map<UUID, String> after) {
+        return after.entrySet().stream()
+                .filter(e -> !Objects.equals(before.get(e.getKey()), e.getValue()))
+                .map(Map.Entry::getKey)
+                .toList();
     }
 
     private List<PlayerRankEntry> buildPlayerRanks(List<UUID> uuids, Long rankedSeasonId) {

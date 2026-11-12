@@ -14,7 +14,7 @@ import java.util.Optional;
 public interface PartyMapper {
 
     @Insert("INSERT INTO party (leader_uuid) VALUES (#{leaderUuid})")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+    @Options(useGeneratedKeys = true, keyProperty = "id,createdAt", keyColumn = "id,created_at")
     void insert(Party party);
 
     @Select("SELECT id, leader_uuid, created_at FROM party WHERE id = #{id}")

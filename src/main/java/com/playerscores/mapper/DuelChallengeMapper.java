@@ -17,7 +17,7 @@ public interface DuelChallengeMapper {
 
     @Insert("INSERT INTO duel_challenge (challenger_uuid, challenged_uuid, game_type, expires_at) " +
             "VALUES (#{challengerUuid}, #{challengedUuid}, #{gameType}, #{expiresAt})")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+    @Options(useGeneratedKeys = true, keyProperty = "id,status,createdAt", keyColumn = "id,status,created_at")
     void insert(DuelChallenge challenge);
 
     @Select("SELECT id, challenger_uuid, challenged_uuid, game_type, status, " +

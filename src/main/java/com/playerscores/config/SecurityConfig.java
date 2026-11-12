@@ -1,5 +1,6 @@
 package com.playerscores.config;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +25,11 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(new ApiKeyAuthFilter(apiKey), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
+                // The servlet container forwards the errors raised by the framework itself (malformed JSON, missing
+                // parameter, wrong method, unknown path) to /error. That forward is not an API call: the key was
+                // already checked on the request, and without this rule every such error answered 403 with an empty
+                // body, so that a client could not tell a malformed request from a wrong key.
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(
                     "/swagger-ui/**",
                     "/swagger-ui.html",

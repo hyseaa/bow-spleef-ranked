@@ -18,6 +18,7 @@ import com.playerscores.model.QueueEntry;
 import com.playerscores.model.RankedSeason;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,8 +32,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final int ELO_TOLERANCE = 100;
     private static final int DEFAULT_ELO = 1000;
+
+    @Value("${queue.elo-tolerance:100}")
+    private int eloTolerance;
+
+    @Value("${queue.entry-ttl-minutes:60}")
+    private int entryTtlMinutes;
 
     private final PlayerMapper playerMapper;
     private final RankedSeasonMapper rankedSeasonMapper;
@@ -80,7 +86,7 @@ public class QueueService {
 
         Optional<QueueEntry> opponent = queueMapper.findMatch(
                 player.getUuid(), gameType, season.getId(),
-                elo, elo - ELO_TOLERANCE, elo + ELO_TOLERANCE);
+                elo, elo - eloTolerance, elo + eloTolerance);
 
         if (opponent.isPresent()) {
             QueueEntry opp = opponent.get();
@@ -90,11 +96,12 @@ public class QueueService {
             queueMapper.delete(opp.getPlayerUuid(), gameType);
 
             return new QueueResponse(true,
-                    new QueuedPlayerInfo(opp.getPlayerUuid(), usernameCache.get(opp.getPlayerUuid()), opp.getElo()));
+                    new QueuedPlayerInfo(opp.getPlayerUuid(), usernameCache.get(opp.getPlayerUuid()), opp.getElo()),
+                    entryTtlMinutes);
         }
 
         log.info("No match found yet for uuid={} (elo={}), staying in queue", player.getUuid(), elo);
-        return new QueueResponse(false, null);
+        return new QueueResponse(false, null, entryTtlMinutes);
     }
 
     @Transactional(readOnly = true)

@@ -44,6 +44,6 @@ public interface QueueMapper {
     @Delete("DELETE FROM queue WHERE player_uuid = #{playerUuid} AND game_type = #{gameType}")
     void delete(@Param("playerUuid") UUID playerUuid, @Param("gameType") String gameType);
 
-    @Delete("DELETE FROM queue WHERE queued_at < NOW() - INTERVAL '1 hour'")
-    int deleteExpired();
+    @Delete("DELETE FROM queue WHERE queued_at < NOW() - make_interval(mins => #{minutes})")
+    int deleteExpired(@Param("minutes") int minutes);
 }

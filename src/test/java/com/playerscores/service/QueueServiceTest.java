@@ -1,5 +1,6 @@
 package com.playerscores.service;
 
+import com.playerscores.dto.QueueResponse;
 import com.playerscores.exception.QueueTeamGameTypeException;
 import com.playerscores.mapper.GameTypeMapper;
 import com.playerscores.mapper.PlayerMapper;
@@ -11,6 +12,7 @@ import com.playerscores.model.Player;
 import com.playerscores.model.RankedSeason;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -80,5 +82,27 @@ class QueueServiceTest {
 
         assertThat(queueService.join("123", "duel").matched()).isFalse();
         verify(queueMapper).upsert(any());
+    }
+
+    /** KI-14: the Elo tolerance and the lifetime of an entry are settings, and the answer tells the player the lifetime (KI-11). */
+    @Test
+    void join_usesTheConfiguredToleranceAndAnswersWithTheEntryLifetime_KI_14_KI_11() {
+        ReflectionTestUtils.setField(queueService, "eloTolerance", 150);
+        ReflectionTestUtils.setField(queueService, "entryTtlMinutes", 45);
+        Player player = new Player();
+        player.setUuid(UUID.randomUUID());
+        RankedSeason season = new RankedSeason();
+        season.setId(5L);
+        when(gameTypeMapper.findByName("duel")).thenReturn(Optional.of(gameType("duel", 1)));
+        when(playerMapper.findByDiscordId("123")).thenReturn(Optional.of(player));
+        when(rankedSeasonMapper.findActiveByGameType("duel")).thenReturn(Optional.of(season));
+        when(playerStatsMapper.findSeasonElo(any(), any())).thenReturn(Optional.empty());
+        when(queueMapper.findMatch(any(), any(), any(), org.mockito.ArgumentMatchers.eq(1000),
+                org.mockito.ArgumentMatchers.eq(850), org.mockito.ArgumentMatchers.eq(1150))).thenReturn(Optional.empty());
+
+        QueueResponse response = queueService.join("123", "duel");
+
+        assertThat(response.matched()).isFalse();
+        assertThat(response.ttlMinutes()).isEqualTo(45);
     }
 }

@@ -105,11 +105,6 @@
             <version>${mybatis-spring-boot.version}</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
 
         <!-- Testcontainers -->
         <dependency>
@@ -174,10 +169,19 @@
                                 <exclude>com/playerscores/ApiApplication.class</exclude>
                                 <exclude>com/playerscores/config/**</exclude>
                                 <exclude>com/playerscores/mapper/ScoreSqlProvider.class</exclude>
-                                <exclude>com/playerscores/client/MojangClient.class</exclude>
-                                <exclude>com/playerscores/client/HypixelClient.class</exclude>
                             </excludes>
-                            <rules/>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
                         </configuration>
                     </execution>
                 </executions>

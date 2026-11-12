@@ -3,6 +3,7 @@ package com.playerscores.service;
 import com.playerscores.mapper.QueueMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -13,11 +14,14 @@ public class QueueCleanupScheduler {
 
     private final QueueMapper queueMapper;
 
+    @Value("${queue.entry-ttl-minutes:60}")
+    private int entryTtlMinutes;
+
     @Scheduled(fixedDelayString = "${queue.cleanup-delay-ms:60000}")
     public void removeExpiredEntries() {
-        int removed = queueMapper.deleteExpired();
+        int removed = queueMapper.deleteExpired(entryTtlMinutes);
         if (removed > 0) {
-            log.info("Queue cleanup: removed {} expired entry(-ies) (>1h)", removed);
+            log.info("Queue cleanup: removed {} expired entry(-ies) (>{} min)", removed, entryTtlMinutes);
         }
     }
 }

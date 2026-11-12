@@ -27,7 +27,9 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/swagger-ui/**",
                     "/swagger-ui.html",
-                    "/api-docs/**"
+                    "/api-docs/**",
+                    // a container health check carries no API key (KI-18); the other actuator endpoints need it
+                    "/actuator/health"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

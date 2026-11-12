@@ -146,4 +146,14 @@ class DuelChallengeControllerTest {
         mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-player-left")).andExpect(status().isBadRequest());
         verifyNoInteractions(duelChallengeService);
     }
+
+    @Test
+    void aBlankDiscordIdIsABadRequestAndCallsNothing() throws Exception {
+        mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-request").param("discordId", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mockMvc.perform(post("/api/v1/duel-challenges/7/cancel").param("discordId", "  ")).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/duel-challenges/7/confirm").param("confirmerDiscordId", "")).andExpect(status().isBadRequest());
+        verifyNoInteractions(duelChallengeService);
+    }
 }

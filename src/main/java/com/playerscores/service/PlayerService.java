@@ -110,7 +110,8 @@ public class PlayerService {
         PlayerCasualStatsRow casual = playerStatsMapper.findCasualStats(uuid);
         PlayerStatsResponse response = new PlayerStatsResponse(
                 uuid,
-                new PlayerCasualStatsResponse(casual.getMatchesPlayed(), casual.getWins(), casual.getMatchesPlayed() - casual.getWins()),
+                new PlayerCasualStatsResponse(casual.getMatchesPlayed(), casual.getWins(),
+                        casual.getMatchesPlayed() - casual.getWins() - casual.getDraws(), casual.getDraws()),
                 playerStatsMapper.findActiveRankedStats(uuid)
         );
         log.debug("Stats fetched for uuid={}: casualMatches={}, rankedSeasons={}", uuid, casual.getMatchesPlayed(), response.ranked().size());

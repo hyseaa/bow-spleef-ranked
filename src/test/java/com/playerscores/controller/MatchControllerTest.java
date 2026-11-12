@@ -200,4 +200,22 @@ class MatchControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body()))
                 .andExpect(status().isCreated());
     }
+
+    /** The page and size limits of the signature are enforced: an unbounded size would load every match one by one. */
+    @Test
+    void getMatchesByGameType_pageAndSizeOutOfBounds_return400() throws Exception {
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("size", "0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("page", "-1")).andExpect(status().isBadRequest());
+        verifyNoInteractions(matchService);
+    }
+
+    @Test
+    void getMatchesByGameType_maximumSize_isAccepted() throws Exception {
+        when(matchService.getMatchesByGameType("BEDWARS", 0, 100)).thenReturn(MatchListResponse.of("BEDWARS", "Bed Wars", List.of(), 0, 100, 0L));
+
+        mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("size", "100")).andExpect(status().isOk());
+    }
 }

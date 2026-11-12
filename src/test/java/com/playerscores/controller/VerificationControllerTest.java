@@ -3,6 +3,7 @@ package com.playerscores.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playerscores.dto.VerifiedPlayerResponse;
 import com.playerscores.dto.VerifyRequest;
+import com.playerscores.exception.DiscordAlreadyLinkedException;
 import com.playerscores.exception.UpstreamUnavailableException;
 import com.playerscores.exception.VerificationException;
 import com.playerscores.service.VerificationService;
@@ -78,6 +79,18 @@ class VerificationControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("UPSTREAM_UNAVAILABLE"));
+    }
+
+    @Test
+    void verify_discordAlreadyLinkedToAnotherAccount_returns409WithItsCode() throws Exception {
+        VerifyRequest req = new VerifyRequest("123456789", "Notch", "Notch");
+        when(verificationService.verify(any())).thenThrow(new DiscordAlreadyLinkedException());
+
+        mockMvc.perform(post("/api/v1/players/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DISCORD_ALREADY_LINKED"));
     }
 
     @Test

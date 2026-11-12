@@ -10,6 +10,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
@@ -27,7 +29,8 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
         String key = request.getHeader(HEADER);
-        if (expectedKey.equals(key)) {
+        if (key != null && MessageDigest.isEqual(
+                expectedKey.getBytes(StandardCharsets.UTF_8), key.getBytes(StandardCharsets.UTF_8))) {
             var auth = new UsernamePasswordAuthenticationToken(
                     "api-client", null, List.of(new SimpleGrantedAuthority("ROLE_API")));
             SecurityContextHolder.getContext().setAuthentication(auth);

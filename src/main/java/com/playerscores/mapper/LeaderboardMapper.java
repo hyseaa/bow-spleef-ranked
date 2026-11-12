@@ -15,7 +15,7 @@ public interface LeaderboardMapper {
             + "JOIN team_player tp ON tp.player_uuid = p.uuid "
             + "JOIN team t ON t.id = tp.team_id "
             + "JOIN match m ON m.id = t.match_id "
-            + "WHERE t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = t.match_id) "
+            + "WHERE t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) "
             + "AND m.game_type = #{gameType} "
             + "GROUP BY p.uuid "
             + "ORDER BY wins DESC, p.uuid ASC "
@@ -31,7 +31,7 @@ public interface LeaderboardMapper {
             + "JOIN team_player tp ON tp.player_uuid = p.uuid "
             + "JOIN team t ON t.id = tp.team_id "
             + "JOIN match m ON m.id = t.match_id "
-            + "WHERE t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = t.match_id) "
+            + "WHERE t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) "
             + "AND m.game_type = #{gameType} "
             + "GROUP BY p.uuid"
             + ") AS sub")

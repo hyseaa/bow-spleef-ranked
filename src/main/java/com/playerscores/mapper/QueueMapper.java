@@ -25,6 +25,13 @@ public interface QueueMapper {
             "  AND ranked_season_id = #{seasonId} " +
             "  AND player_uuid != #{playerUuid} " +
             "  AND elo BETWEEN #{minElo} AND #{maxElo} " +
+            // two players who already have an open duel of this game type are not paired: the pairing removes both
+            // from the queue and the duel could not be created (one open duel per pair and game type)
+            "  AND NOT EXISTS (SELECT 1 FROM duel_challenge d WHERE d.game_type = #{gameType} " +
+            "    AND d.status IN ('PENDING', 'ACTIVE', 'REPORTED', 'CONFIRMING') " +
+            "    AND NOT (d.status = 'PENDING' AND d.expires_at < NOW()) " +
+            "    AND ((d.challenger_uuid = queue.player_uuid AND d.challenged_uuid = #{playerUuid}) " +
+            "      OR (d.challenger_uuid = #{playerUuid} AND d.challenged_uuid = queue.player_uuid))) " +
             "ORDER BY ABS(elo - #{elo}) ASC, queued_at ASC " +
             "LIMIT 1 " +
             "FOR UPDATE SKIP LOCKED")

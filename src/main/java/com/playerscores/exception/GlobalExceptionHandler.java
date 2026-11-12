@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UpstreamUnavailableException.class)
     public ProblemDetail handleUpstreamUnavailable(UpstreamUnavailableException ex) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "UPSTREAM_UNAVAILABLE", ex.getMessage());
+    }
+
+    @ExceptionHandler(DiscordAlreadyLinkedException.class)
+    public ProblemDetail handleDiscordAlreadyLinked(DiscordAlreadyLinkedException ex) {
+        return problem(HttpStatus.CONFLICT, "DISCORD_ALREADY_LINKED", ex.getMessage());
     }
 
     @ExceptionHandler(MojangUsernameNotFoundException.class)
@@ -149,6 +155,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());
+    }
+
+    // Spring 6.1 validates constraints on controller parameters itself (page, size, blank Discord IDs...) and throws this
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ProblemDetail handleHandlerMethodValidation(HandlerMethodValidationException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Validation failed");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

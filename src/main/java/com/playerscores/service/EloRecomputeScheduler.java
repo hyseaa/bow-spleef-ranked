@@ -24,7 +24,13 @@ public class EloRecomputeScheduler {
             log.info("Processing {} dirty season(s)", dirty.size());
         }
         for (RankedSeason season : dirty) {
-            eloRecomputeService.recomputeSeasonElo(season.getId());
+            try {
+                eloRecomputeService.recomputeSeasonElo(season.getId());
+            } catch (RuntimeException e) {
+                // The recompute is one transaction, so the season stays dirty and is tried again next time; the other
+                // dirty seasons must not wait behind it.
+                log.error("ELO recompute failed for seasonId={}: {}", season.getId(), e.getMessage(), e);
+            }
         }
     }
 }

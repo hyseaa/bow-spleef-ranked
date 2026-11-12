@@ -6,4 +6,5 @@ import lombok.Data;
 public class PlayerCasualStatsRow {
     private int matchesPlayed;
     private int wins;
+    private int draws;
 }

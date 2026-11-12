@@ -76,7 +76,7 @@ public interface EloMapper {
     long countHistoryByPlayerAndSeason(@Param("uuid") UUID uuid, @Param("rankedSeasonId") Long rankedSeasonId);
 
     @Select("SELECT p.uuid, pse.elo, pse.matches_played, "
-            + "COUNT(CASE WHEN m.id IS NOT NULL AND t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = t.match_id) THEN 1 END) AS wins, "
+            + "COUNT(CASE WHEN m.id IS NOT NULL AND t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) THEN 1 END) AS wins, "
             + "pse.rank_title AS title "
             + "FROM player_season_elo pse "
             + "JOIN player p ON p.uuid = pse.player_uuid "

@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +46,18 @@ class EloRecomputeSchedulerTest {
         scheduler.processDirtySeasons();
 
         verify(eloRecomputeService, never()).recomputeSeasonElo(anyLong());
+    }
+
+    /** One season that cannot be recomputed must not stop the others from being recomputed. */
+    @Test
+    void processDirtySeasons_aFailingSeasonDoesNotBlockTheNextOnes() {
+        when(rankedSeasonMapper.findDirtySeasons()).thenReturn(List.of(season(1L), season(2L)));
+        doThrow(new IllegalStateException("bad data")).when(eloRecomputeService).recomputeSeasonElo(1L);
+
+        scheduler.processDirtySeasons();
+
+        verify(eloRecomputeService).recomputeSeasonElo(1L);
+        verify(eloRecomputeService).recomputeSeasonElo(2L);
     }
 
     private RankedSeason season(Long id) {

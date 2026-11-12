@@ -1,7 +1,9 @@
 package com.playerscores.service;
 
+import com.playerscores.exception.DiscordAlreadyLinkedException;
 import com.playerscores.mapper.PlayerMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,18 @@ public class PlayerLinkService {
     @Transactional
     public void linkDiscord(UUID uuid, String discordId) {
         playerMapper.insertIfAbsent(uuid);
-        playerMapper.updateDiscordId(uuid, discordId);
+        // player.discord_id is unique: without this check a second Minecraft account for the same Discord account
+        // ended in a database error (500) instead of a clear answer
+        playerMapper.findByDiscordId(discordId)
+                .filter(owner -> !owner.getUuid().equals(uuid))
+                .ifPresent(owner -> {
+                    throw new DiscordAlreadyLinkedException();
+                });
+        try {
+            playerMapper.updateDiscordId(uuid, discordId);
+        } catch (DuplicateKeyException e) {
+            // two verifications of the same Discord account at the same time
+            throw new DiscordAlreadyLinkedException();
+        }
     }
 }

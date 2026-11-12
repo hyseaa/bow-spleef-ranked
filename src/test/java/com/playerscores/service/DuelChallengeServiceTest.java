@@ -6,6 +6,7 @@ import com.playerscores.dto.CreateMatchRequest;
 import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.DuelChallengeResponse;
 import com.playerscores.dto.MatchResponse;
+import com.playerscores.exception.DuelAlreadyOpenException;
 import com.playerscores.exception.DuelCancelAlreadyRequestedException;
 import com.playerscores.exception.DuelCancelNeedsAgreementException;
 import com.playerscores.exception.DuelChallengeForbiddenException;
@@ -646,5 +647,19 @@ class DuelChallengeServiceTest {
                     .as(status).isInstanceOf(DuelChallengeNotPendingException.class);
         }
         verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void create_whenTheSamePlayersAlreadyHaveAnOpenDuelOfThatGameType_isRefusedBeforeAnythingIsWritten_KI_09() {
+        stubPlayer("d-challenger", CHALLENGER);
+        stubPlayer("d-challenged", CHALLENGED);
+        when(gameTypeMapper.findByName("DUEL_1V1")).thenReturn(Optional.of(gameType("DUEL_1V1", 1)));
+        when(duelChallengeMapper.existsOpenBetween(CHALLENGER, CHALLENGED, "DUEL_1V1")).thenReturn(true);
+
+        assertThatThrownBy(() -> duelChallengeService.create(new CreateDuelChallengeRequest(
+                "d-challenger", "d-challenged", "DUEL_1V1")))
+                .isInstanceOf(DuelAlreadyOpenException.class);
+        verify(duelChallengeMapper, never()).insert(any());
+        verifyNoInteractions(participantMapper);
     }
 }

@@ -9,6 +9,7 @@ import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.dto.ReportDuelScoresRequest;
 import com.playerscores.dto.TeamRequest;
+import com.playerscores.exception.DuelAlreadyOpenException;
 import com.playerscores.exception.DuelCancelAlreadyRequestedException;
 import com.playerscores.exception.DuelCancelNeedsAgreementException;
 import com.playerscores.exception.DuelChallengeForbiddenException;
@@ -105,6 +106,9 @@ public class DuelChallengeService {
         }
         validateRosters(gameType, challengerRoster, challengedRoster);
 
+        // KI-09: one open duel at a time between the same two players for a game type
+        rejectIfAlreadyOpen(challenger.getUuid(), challengedLeaderUuid, request.gameType());
+
         DuelChallenge challenge = new DuelChallenge();
         challenge.setChallengerUuid(challenger.getUuid());
         challenge.setChallengedUuid(challengedLeaderUuid);
@@ -119,6 +123,16 @@ public class DuelChallengeService {
                 challenge.getId(), challenger.getUuid(), challenge.getChallengedUuid(),
                 request.gameType(), gameType.getTeamSize());
         return toResponse(challenge);
+    }
+
+    private void rejectIfAlreadyOpen(UUID one, UUID other, String gameType) {
+        String first = one.compareTo(other) <= 0 ? one.toString() : other.toString();
+        String second = one.compareTo(other) <= 0 ? other.toString() : one.toString();
+        duelChallengeMapper.lockPair(first + ":" + second + ":" + gameType);
+        if (duelChallengeMapper.existsOpenBetween(one, other, gameType)) {
+            log.warn("Duel challenge refused: an open duel already exists for {} and {} in {}", one, other, gameType);
+            throw new DuelAlreadyOpenException(gameType);
+        }
     }
 
     private Optional<Party> findPartyOf(UUID playerUuid) {

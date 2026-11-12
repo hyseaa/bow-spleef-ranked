@@ -28,6 +28,18 @@ public interface DuelChallengeMapper {
     Optional<DuelChallenge> findById(@Param("id") Long id);
 
     // active_since: the moment the duel last became ACTIVE, which the expiry of stale duels counts from (spec 006)
+    // KI-09: at most one open duel between the same two players for a game type. A PENDING challenge past its
+    // expiry is deleted by the scheduler within a minute, so it is not counted.
+    @Select("SELECT EXISTS (SELECT 1 FROM duel_challenge WHERE game_type = #{gameType} " +
+            "AND status IN ('PENDING', 'ACTIVE', 'REPORTED', 'CONFIRMING') " +
+            "AND NOT (status = 'PENDING' AND expires_at < NOW()) " +
+            "AND ((challenger_uuid = #{a} AND challenged_uuid = #{b}) OR (challenger_uuid = #{b} AND challenged_uuid = #{a})))")
+    boolean existsOpenBetween(@Param("a") UUID a, @Param("b") UUID b, @Param("gameType") String gameType);
+
+    /** Transaction-scoped lock so that two simultaneous creations for the same pair are checked one after the other. */
+    @Select("SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended(#{key}, 0))) AS locked")
+    int lockPair(@Param("key") String key);
+
     @Update("UPDATE duel_challenge SET status = #{newStatus}, " +
             "active_since = CASE WHEN CAST(#{newStatus} AS VARCHAR) = 'ACTIVE' THEN NOW() ELSE active_since END " +
             "WHERE id = #{id} AND status = #{expectedStatus}")

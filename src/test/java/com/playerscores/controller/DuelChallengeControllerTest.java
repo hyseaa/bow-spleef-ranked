@@ -117,4 +117,33 @@ class DuelChallengeControllerTest {
         mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-decline")).andExpect(status().isBadRequest());
         verifyNoInteractions(duelChallengeService);
     }
+
+    @Test
+    void cancelPlayerLeft_returns200WithACancelledDuel_REQ_006_08() throws Exception {
+        when(duelChallengeService.cancelPlayerLeft(7L, "d-1")).thenReturn(duel("CANCELLED", null));
+
+        mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-player-left").param("discordId", "d-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void cancelPlayerLeft_errors_REQ_006_10() throws Exception {
+        when(duelChallengeService.cancelPlayerLeft(7L, "outsider"))
+                .thenThrow(new DuelChallengeForbiddenException("Only a participant can perform this action"));
+        when(duelChallengeService.cancelPlayerLeft(8L, "d-1"))
+                .thenThrow(new DuelChallengeNotPendingException(8L, "COMPLETED"));
+
+        mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-player-left").param("discordId", "outsider"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("DUEL_CHALLENGE_FORBIDDEN"));
+        mockMvc.perform(post("/api/v1/duel-challenges/8/cancel-player-left").param("discordId", "d-1"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void cancelPlayerLeft_missingDiscordId_returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/duel-challenges/7/cancel-player-left")).andExpect(status().isBadRequest());
+        verifyNoInteractions(duelChallengeService);
+    }
 }

@@ -12,12 +12,18 @@ import org.springframework.stereotype.Component;
 public class DuelChallengeExpiryScheduler {
 
     private final DuelChallengeMapper duelChallengeMapper;
+    private final DuelChallengeService duelChallengeService;
 
     @Scheduled(fixedDelayString = "${duel.expiry-check-delay-ms:60000}")
     public void removeExpiredChallenges() {
         int removed = duelChallengeMapper.deleteExpired();
         if (removed > 0) {
             log.info("Duel challenge cleanup: removed {} expired challenge(s)", removed);
+        }
+        // spec 006: accepted duels that nobody plays
+        int expired = duelChallengeService.expireStaleActiveDuels();
+        if (expired > 0) {
+            log.info("Duel challenge cleanup: cancelled {} stale ACTIVE duel(s)", expired);
         }
     }
 }

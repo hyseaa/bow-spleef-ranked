@@ -63,6 +63,9 @@ public class DuelChallengeService {
     @Value("${duel.challenge-ttl-minutes:60}")
     private int challengeTtlMinutes;
 
+    @Value("${duel.active-expiry-hours:24}")
+    private int activeExpiryHours;
+
     @Transactional
     public DuelChallengeResponse create(CreateDuelChallengeRequest request) {
         log.info("Creating duel challenge: challengerDiscordId={}, challengedDiscordId={}, gameType={}",
@@ -267,6 +270,40 @@ public class DuelChallengeService {
         }
         log.info("Duel cancellation declined: id={}, decliner={}", id, callerUuid);
         challenge.setCancelRequestedBy(null);
+        return toResponse(challenge);
+    }
+
+    /**
+     * Cancels the ACTIVE duels nobody has played for {@code duel.active-expiry-hours} (spec 006) and tells the bot,
+     * after the commit, so that it closes their channels. A REPORTED duel never expires.
+     */
+    @Transactional
+    public int expireStaleActiveDuels() {
+        List<Long> expired = duelChallengeMapper.cancelStaleActive(activeExpiryHours);
+        for (Long id : expired) {
+            log.info("Duel challenge expired: id={} was ACTIVE for more than {} hour(s)", id, activeExpiryHours);
+            matchWebhookClient.notifyDuelCancelled(new DuelCancelledPayload(id, DuelCancelledPayload.REASON_EXPIRED));
+        }
+        return expired.size();
+    }
+
+    /**
+     * A participant left the Discord server (spec 006): the duel is cancelled with no result, without the other
+     * player's agreement (none is possible), and the bot is told so that it closes the channel. The API cannot
+     * verify the departure; it trusts the caller as for every Discord fact (ADR-0005).
+     */
+    @Transactional
+    public DuelChallengeResponse cancelPlayerLeft(Long id, String discordId) {
+        DuelChallenge challenge = findOrThrow(id);
+        UUID leftUuid = resolveDiscordId(discordId);
+        requireParticipant(challenge, leftUuid);
+
+        if (duelChallengeMapper.cancelAbandoned(id) == 0) {
+            throw new DuelChallengeNotPendingException(id, findOrThrow(id).getStatus());
+        }
+        log.info("Duel cancelled because a participant left: id={}, player={}", id, leftUuid);
+        challenge.setStatus("CANCELLED");
+        matchWebhookClient.notifyDuelCancelled(new DuelCancelledPayload(id, DuelCancelledPayload.REASON_PLAYER_LEFT));
         return toResponse(challenge);
     }
 

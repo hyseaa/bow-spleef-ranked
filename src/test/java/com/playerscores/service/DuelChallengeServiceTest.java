@@ -32,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -566,5 +568,83 @@ class DuelChallengeServiceTest {
             assertThatThrownBy(() -> duelChallengeService.cancel(7L, "d-challenger"))
                     .as(status).isInstanceOf(DuelChallengeNotPendingException.class);
         }
+    }
+
+    // ---- Abandoned duels (spec 006) ----------------------------------------------------------------
+
+    @Test
+    void expireStaleActiveDuels_cancelsAndTellsTheBotForEachOne_REQ_006_01() {
+        ReflectionTestUtils.setField(duelChallengeService, "activeExpiryHours", 24);
+        when(duelChallengeMapper.cancelStaleActive(24)).thenReturn(List.of(11L, 12L));
+
+        int expired = duelChallengeService.expireStaleActiveDuels();
+
+        assertThat(expired).isEqualTo(2);
+        ArgumentCaptor<DuelCancelledPayload> payload = ArgumentCaptor.forClass(DuelCancelledPayload.class);
+        verify(matchWebhookClient, times(2)).notifyDuelCancelled(payload.capture());
+        assertThat(payload.getAllValues()).extracting(DuelCancelledPayload::duelId).containsExactly(11L, 12L);
+        assertThat(payload.getAllValues()).extracting(DuelCancelledPayload::reason).containsOnly("EXPIRED");
+    }
+
+    @Test
+    void expireStaleActiveDuels_nothingStale_sendsNothing_REQ_006_01() {
+        ReflectionTestUtils.setField(duelChallengeService, "activeExpiryHours", 24);
+        when(duelChallengeMapper.cancelStaleActive(24)).thenReturn(List.of());
+
+        assertThat(duelChallengeService.expireStaleActiveDuels()).isZero();
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void expireStaleActiveDuels_usesTheConfiguredDelay_REQ_006_02() {
+        ReflectionTestUtils.setField(duelChallengeService, "activeExpiryHours", 3);
+        when(duelChallengeMapper.cancelStaleActive(3)).thenReturn(List.of());
+
+        duelChallengeService.expireStaleActiveDuels();
+
+        verify(duelChallengeMapper).cancelStaleActive(3);
+        verify(duelChallengeMapper, never()).cancelStaleActive(24);
+    }
+
+    @Test
+    void cancelPlayerLeft_fromActiveAndReported_cancelsAndTellsTheBotOnce_REQ_006_08() {
+        for (String status : List.of("ACTIVE", "REPORTED")) {
+            clearInvocations(matchWebhookClient);
+            duel(status, null);
+            stubPlayer("d-challenged", CHALLENGED);
+            when(duelChallengeMapper.cancelAbandoned(7L)).thenReturn(1);
+
+            DuelChallengeResponse response = duelChallengeService.cancelPlayerLeft(7L, "d-challenged");
+
+            assertThat(response.status()).as(status).isEqualTo("CANCELLED");
+            ArgumentCaptor<DuelCancelledPayload> payload = ArgumentCaptor.forClass(DuelCancelledPayload.class);
+            verify(matchWebhookClient, times(1)).notifyDuelCancelled(payload.capture());
+            assertThat(payload.getValue().duelId()).isEqualTo(7L);
+            assertThat(payload.getValue().reason()).isEqualTo("PLAYER_LEFT");
+        }
+    }
+
+    @Test
+    void cancelPlayerLeft_byAnOutsider_isForbiddenAndChangesNothing_REQ_006_10() {
+        duel("ACTIVE", null);
+        stubPlayer("d-outsider", UUID.randomUUID());
+
+        assertThatThrownBy(() -> duelChallengeService.cancelPlayerLeft(7L, "d-outsider"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        verify(duelChallengeMapper, never()).cancelAbandoned(any());
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void cancelPlayerLeft_whenNotOpen_isNotPendingAndSendsNothing_REQ_006_10() {
+        for (String status : List.of("PENDING", "CONFIRMING", "COMPLETED", "CANCELLED", "REFUSED")) {
+            duel(status, null);
+            stubPlayer("d-challenged", CHALLENGED);
+            when(duelChallengeMapper.cancelAbandoned(7L)).thenReturn(0);
+
+            assertThatThrownBy(() -> duelChallengeService.cancelPlayerLeft(7L, "d-challenged"))
+                    .as(status).isInstanceOf(DuelChallengeNotPendingException.class);
+        }
+        verifyNoInteractions(matchWebhookClient);
     }
 }

@@ -103,6 +103,16 @@ public class DuelChallengeController {
         return duelChallengeService.declineCancel(id, discordId);
     }
 
+    @PostMapping("/{id}/cancel-player-left")
+    @Operation(summary = "Cancel an ACTIVE or REPORTED duel because a participant left the Discord server",
+            description = "`discordId` is the participant who left. Cancels with no result and without the other "
+                    + "player's agreement, and tells the bot (DUEL_CANCELLED, reason PLAYER_LEFT). Meant for the bot.")
+    public DuelChallengeResponse cancelPlayerLeft(@PathVariable Long id,
+                                                  @RequestParam @NotBlank String discordId) {
+        log.info("POST /api/v1/duel-challenges/{}/cancel-player-left: discordId={}", id, discordId);
+        return duelChallengeService.cancelPlayerLeft(id, discordId);
+    }
+
     @PostMapping("/{id}/report")
     @Operation(summary = "Report match scores (any participant)")
     public DuelChallengeResponse report(@PathVariable Long id,

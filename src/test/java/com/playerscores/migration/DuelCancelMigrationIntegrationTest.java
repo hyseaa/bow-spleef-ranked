@@ -54,7 +54,7 @@ class DuelCancelMigrationIntegrationTest {
         assertThat(after).hasSameSizeAs(duelsBefore);
         for (int i = 0; i < after.size(); i++) {
             assertThat(after.get(i)).startsWith(duelsBefore.get(i));
-            assertThat(after.get(i)).endsWith("cancel_requested_by=null;");
+            assertThat(after.get(i)).contains("cancel_requested_by=null;");
         }
     }
 

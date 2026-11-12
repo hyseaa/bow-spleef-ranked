@@ -16,6 +16,7 @@ public class DuelChallenge {
     private Integer scoreChallenger;
     private Integer scoreChallenged;
     private Long matchId;
+    private UUID cancelRequestedBy;
     private OffsetDateTime createdAt;
     private OffsetDateTime expiresAt;
 }

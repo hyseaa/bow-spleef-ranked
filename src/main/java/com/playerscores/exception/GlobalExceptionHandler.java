@@ -71,6 +71,16 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "DUEL_CHALLENGE_NOT_PENDING", ex.getMessage());
     }
 
+    @ExceptionHandler(DuelCancelNeedsAgreementException.class)
+    public ProblemDetail handleDuelCancelNeedsAgreement(DuelCancelNeedsAgreementException ex) {
+        return problem(HttpStatus.CONFLICT, "DUEL_CANCEL_NEEDS_AGREEMENT", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuelCancelAlreadyRequestedException.class)
+    public ProblemDetail handleDuelCancelAlreadyRequested(DuelCancelAlreadyRequestedException ex) {
+        return problem(HttpStatus.CONFLICT, "DUEL_CANCEL_ALREADY_REQUESTED", ex.getMessage());
+    }
+
     @ExceptionHandler(DuelChallengeForbiddenException.class)
     public ProblemDetail handleDuelChallengeForbidden(DuelChallengeForbiddenException ex) {
         return problem(HttpStatus.FORBIDDEN, "DUEL_CHALLENGE_FORBIDDEN", ex.getMessage());

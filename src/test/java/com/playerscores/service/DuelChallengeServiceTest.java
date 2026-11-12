@@ -1,9 +1,13 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateDuelChallengeRequest;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.DuelChallengeResponse;
 import com.playerscores.dto.MatchResponse;
+import com.playerscores.exception.DuelCancelAlreadyRequestedException;
+import com.playerscores.exception.DuelCancelNeedsAgreementException;
 import com.playerscores.exception.DuelChallengeForbiddenException;
 import com.playerscores.exception.DuelChallengeNotPendingException;
 import com.playerscores.exception.DuplicatePlayerInMatchException;
@@ -63,6 +67,8 @@ class DuelChallengeServiceTest {
     private MatchService matchService;
     @Mock
     private UsernameCache usernameCache;
+    @Mock
+    private MatchWebhookClient matchWebhookClient;
 
     @InjectMocks
     private DuelChallengeService duelChallengeService;
@@ -313,8 +319,7 @@ class DuelChallengeServiceTest {
         verify(duelChallengeMapper, never()).setMatchId(any(), any());
     }
 
-    @Test
-    void confirmScores_createMatchThrows_revertsClaimToReported() {
+    private DuelChallenge reportedDuelBeingConfirmed() {
         DuelChallenge challenge = new DuelChallenge();
         challenge.setId(7L);
         challenge.setChallengerUuid(CHALLENGER);
@@ -327,13 +332,37 @@ class DuelChallengeServiceTest {
         when(duelChallengeMapper.findById(7L)).thenReturn(Optional.of(challenge));
         stubPlayer("d-challenged", CHALLENGED);
         when(duelChallengeMapper.updateStatus(7L, "REPORTED", "CONFIRMING")).thenReturn(1);
+        return challenge;
+    }
+
+    @Test
+    void confirmScores_createMatchThrows_revertsClaimToReported() {
+        reportedDuelBeingConfirmed();
+        when(matchService.createMatch(any())).thenThrow(new IllegalStateException("boom"));
+
+        assertThatThrownBy(() -> duelChallengeService.confirmScores(7L, "d-challenged"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(duelChallengeMapper).updateStatus(7L, "CONFIRMING", "REPORTED");
+        verify(duelChallengeMapper, never()).setMatchId(any(), any());
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void confirmScores_noActiveSeason_cancelsTheDuelAndTellsTheBot_REQ_003_11() {
+        reportedDuelBeingConfirmed();
         when(matchService.createMatch(any())).thenThrow(new NoActiveRankedSeasonException());
 
         assertThatThrownBy(() -> duelChallengeService.confirmScores(7L, "d-challenged"))
                 .isInstanceOf(NoActiveRankedSeasonException.class);
 
-        verify(duelChallengeMapper).updateStatus(7L, "CONFIRMING", "REPORTED");
+        verify(duelChallengeMapper).updateStatus(7L, "CONFIRMING", "CANCELLED");
+        verify(duelChallengeMapper, never()).updateStatus(7L, "CONFIRMING", "REPORTED");
         verify(duelChallengeMapper, never()).setMatchId(any(), any());
+        ArgumentCaptor<DuelCancelledPayload> payload = ArgumentCaptor.forClass(DuelCancelledPayload.class);
+        verify(matchWebhookClient, times(1)).notifyDuelCancelled(payload.capture());
+        assertThat(payload.getValue().duelId()).isEqualTo(7L);
+        assertThat(payload.getValue().reason()).isEqualTo("NO_ACTIVE_RANKED_SEASON");
     }
 
     @Test
@@ -357,5 +386,185 @@ class DuelChallengeServiceTest {
         p.setPlayerUuid(uuid);
         p.setSide(side);
         return p;
+    }
+
+    // ---- Cancellation by mutual agreement (spec 003) -----------------------------------------------
+
+    private DuelChallenge duel(String status, UUID cancelRequestedBy) {
+        DuelChallenge challenge = new DuelChallenge();
+        challenge.setId(7L);
+        challenge.setChallengerUuid(CHALLENGER);
+        challenge.setChallengedUuid(CHALLENGED);
+        challenge.setGameType("DUEL_1V1");
+        challenge.setStatus(status);
+        challenge.setCancelRequestedBy(cancelRequestedBy);
+        when(duelChallengeMapper.findById(7L)).thenReturn(Optional.of(challenge));
+        return challenge;
+    }
+
+    @Test
+    void requestCancel_fromActiveAndReported_recordsTheRequester_REQ_003_01_REQ_003_08() {
+        for (String status : List.of("ACTIVE", "REPORTED")) {
+            DuelChallenge challenge = duel(status, null);
+            stubPlayer("d-challenger", CHALLENGER);
+            when(duelChallengeMapper.requestCancel(7L, CHALLENGER)).thenReturn(1);
+
+            DuelChallengeResponse response = duelChallengeService.requestCancel(7L, "d-challenger");
+
+            assertThat(response.cancelRequestedBy()).as(status).isEqualTo(CHALLENGER);
+            assertThat(response.status()).isEqualTo(status);
+            assertThat(challenge.getCancelRequestedBy()).isEqualTo(CHALLENGER);
+        }
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void requestCancel_whileARequestWaits_isRefused_REQ_003_07() {
+        duel("ACTIVE", CHALLENGED);
+        stubPlayer("d-challenger", CHALLENGER);
+        when(duelChallengeMapper.requestCancel(7L, CHALLENGER)).thenReturn(0);
+
+        assertThatThrownBy(() -> duelChallengeService.requestCancel(7L, "d-challenger"))
+                .isInstanceOf(DuelCancelAlreadyRequestedException.class);
+    }
+
+    @Test
+    void requestCancel_whenNotCancellable_isNotPending_REQ_003_06() {
+        for (String status : List.of("PENDING", "CONFIRMING", "COMPLETED", "CANCELLED", "REFUSED")) {
+            duel(status, null);
+            stubPlayer("d-challenger", CHALLENGER);
+            when(duelChallengeMapper.requestCancel(7L, CHALLENGER)).thenReturn(0);
+
+            assertThatThrownBy(() -> duelChallengeService.requestCancel(7L, "d-challenger"))
+                    .as(status).isInstanceOf(DuelChallengeNotPendingException.class);
+        }
+    }
+
+    @Test
+    void requestCancel_byAnOutsider_isForbidden_REQ_003_04() {
+        duel("ACTIVE", null);
+        stubPlayer("d-outsider", UUID.randomUUID());
+
+        assertThatThrownBy(() -> duelChallengeService.requestCancel(7L, "d-outsider"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        verify(duelChallengeMapper, never()).requestCancel(any(), any());
+    }
+
+    @Test
+    void acceptCancel_byTheOtherPlayer_cancelsAndNotifiesTheBotOnce_REQ_003_02_REQ_003_10() {
+        duel("REPORTED", CHALLENGER);
+        stubPlayer("d-challenged", CHALLENGED);
+        when(duelChallengeMapper.acceptCancel(7L, CHALLENGED)).thenReturn(1);
+
+        DuelChallengeResponse response = duelChallengeService.acceptCancel(7L, "d-challenged");
+
+        assertThat(response.status()).isEqualTo("CANCELLED");
+        ArgumentCaptor<DuelCancelledPayload> payload = ArgumentCaptor.forClass(DuelCancelledPayload.class);
+        verify(matchWebhookClient, times(1)).notifyDuelCancelled(payload.capture());
+        assertThat(payload.getValue().duelId()).isEqualTo(7L);
+        assertThat(payload.getValue().reason()).isEqualTo("AGREEMENT");
+    }
+
+    @Test
+    void acceptCancel_byTheRequester_isForbidden_REQ_003_04() {
+        duel("ACTIVE", CHALLENGER);
+        stubPlayer("d-challenger", CHALLENGER);
+
+        assertThatThrownBy(() -> duelChallengeService.acceptCancel(7L, "d-challenger"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        verify(duelChallengeMapper, never()).acceptCancel(any(), any());
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void acceptCancel_byAnOutsider_isForbidden_REQ_003_04() {
+        duel("ACTIVE", CHALLENGER);
+        stubPlayer("d-outsider", UUID.randomUUID());
+
+        assertThatThrownBy(() -> duelChallengeService.acceptCancel(7L, "d-outsider"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void acceptCancel_withNoRequest_isNotPendingAndSendsNothing_REQ_003_06() {
+        duel("ACTIVE", null);
+        stubPlayer("d-challenged", CHALLENGED);
+        when(duelChallengeMapper.acceptCancel(7L, CHALLENGED)).thenReturn(0);
+
+        assertThatThrownBy(() -> duelChallengeService.acceptCancel(7L, "d-challenged"))
+                .isInstanceOf(DuelChallengeNotPendingException.class);
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void declineCancel_clearsTheRequestAndSendsNothing_REQ_003_03() {
+        DuelChallenge challenge = duel("ACTIVE", CHALLENGER);
+        stubPlayer("d-challenged", CHALLENGED);
+        when(duelChallengeMapper.declineCancel(7L, CHALLENGED)).thenReturn(1);
+
+        DuelChallengeResponse response = duelChallengeService.declineCancel(7L, "d-challenged");
+
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(response.cancelRequestedBy()).isNull();
+        assertThat(challenge.getCancelRequestedBy()).isNull();
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void declineCancel_byTheRequesterOrAnOutsider_isForbidden_REQ_003_04() {
+        duel("ACTIVE", CHALLENGER);
+        stubPlayer("d-challenger", CHALLENGER);
+        stubPlayer("d-outsider", UUID.randomUUID());
+
+        assertThatThrownBy(() -> duelChallengeService.declineCancel(7L, "d-challenger"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        assertThatThrownBy(() -> duelChallengeService.declineCancel(7L, "d-outsider"))
+                .isInstanceOf(DuelChallengeForbiddenException.class);
+        verify(duelChallengeMapper, never()).declineCancel(any(), any());
+    }
+
+    @Test
+    void declineCancel_withNoRequest_isNotPending_REQ_003_06() {
+        duel("ACTIVE", null);
+        stubPlayer("d-challenged", CHALLENGED);
+        when(duelChallengeMapper.declineCancel(7L, CHALLENGED)).thenReturn(0);
+
+        assertThatThrownBy(() -> duelChallengeService.declineCancel(7L, "d-challenged"))
+                .isInstanceOf(DuelChallengeNotPendingException.class);
+    }
+
+    @Test
+    void cancel_aPendingChallenge_stillCancelsAlone_REQ_003_09() {
+        duel("PENDING", null);
+        stubPlayer("d-challenger", CHALLENGER);
+        when(duelChallengeMapper.cancel(7L)).thenReturn(1);
+
+        assertThat(duelChallengeService.cancel(7L, "d-challenger").status()).isEqualTo("CANCELLED");
+        verifyNoInteractions(matchWebhookClient);
+    }
+
+    @Test
+    void cancel_anActiveOrReportedDuel_needsAgreementAndChangesNothing_REQ_003_09() {
+        for (String status : List.of("ACTIVE", "REPORTED")) {
+            duel(status, null);
+            stubPlayer("d-challenger", CHALLENGER);
+
+            assertThatThrownBy(() -> duelChallengeService.cancel(7L, "d-challenger"))
+                    .as(status).isInstanceOf(DuelCancelNeedsAgreementException.class);
+        }
+        verify(duelChallengeMapper, never()).cancel(any());
+    }
+
+    @Test
+    void cancel_otherStatuses_areNotPending_REQ_003_09() {
+        for (String status : List.of("COMPLETED", "CANCELLED", "REFUSED", "CONFIRMING")) {
+            duel(status, null);
+            stubPlayer("d-challenger", CHALLENGER);
+            when(duelChallengeMapper.cancel(7L)).thenReturn(0);
+
+            assertThatThrownBy(() -> duelChallengeService.cancel(7L, "d-challenger"))
+                    .as(status).isInstanceOf(DuelChallengeNotPendingException.class);
+        }
     }
 }

@@ -65,11 +65,42 @@ public class DuelChallengeController {
     }
 
     @PostMapping("/{id}/cancel")
-    @Operation(summary = "Cancel a duel challenge (any participant)")
+    @Operation(summary = "Cancel a duel challenge that nobody has accepted yet (any participant)",
+            description = "Only valid while the challenge is PENDING. Once accepted (ACTIVE or REPORTED) a duel is "
+                    + "cancelled by agreement: cancel-request, then cancel-accept by the other player. Answers 409 "
+                    + "DUEL_CANCEL_NEEDS_AGREEMENT otherwise.")
     public DuelChallengeResponse cancel(@PathVariable Long id,
                                         @RequestParam @NotBlank String discordId) {
         log.info("POST /api/v1/duel-challenges/{}/cancel: discordId={}", id, discordId);
         return duelChallengeService.cancel(id, discordId);
+    }
+
+    @PostMapping("/{id}/cancel-request")
+    @Operation(summary = "Ask to cancel an ACTIVE or REPORTED duel (any participant)",
+            description = "Records the request; the other participant must accept it. 409 DUEL_CANCEL_ALREADY_REQUESTED "
+                    + "while a request waits.")
+    public DuelChallengeResponse cancelRequest(@PathVariable Long id,
+                                               @RequestParam @NotBlank String discordId) {
+        log.info("POST /api/v1/duel-challenges/{}/cancel-request: discordId={}", id, discordId);
+        return duelChallengeService.requestCancel(id, discordId);
+    }
+
+    @PostMapping("/{id}/cancel-accept")
+    @Operation(summary = "Agree to cancel the duel (the participant who did not ask)",
+            description = "Cancels the duel and tells the bot (DUEL_CANCELLED webhook).")
+    public DuelChallengeResponse cancelAccept(@PathVariable Long id,
+                                              @RequestParam @NotBlank String discordId) {
+        log.info("POST /api/v1/duel-challenges/{}/cancel-accept: discordId={}", id, discordId);
+        return duelChallengeService.acceptCancel(id, discordId);
+    }
+
+    @PostMapping("/{id}/cancel-decline")
+    @Operation(summary = "Decline the cancellation request (the participant who did not ask)",
+            description = "Clears the request; the duel goes on.")
+    public DuelChallengeResponse cancelDecline(@PathVariable Long id,
+                                               @RequestParam @NotBlank String discordId) {
+        log.info("POST /api/v1/duel-challenges/{}/cancel-decline: discordId={}", id, discordId);
+        return duelChallengeService.declineCancel(id, discordId);
     }
 
     @PostMapping("/{id}/report")

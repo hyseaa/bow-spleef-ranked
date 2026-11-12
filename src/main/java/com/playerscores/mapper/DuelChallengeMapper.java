@@ -21,7 +21,8 @@ public interface DuelChallengeMapper {
     void insert(DuelChallenge challenge);
 
     @Select("SELECT id, challenger_uuid, challenged_uuid, game_type, status, " +
-            "reporter_uuid, score_challenger, score_challenged, match_id, created_at, expires_at " +
+            "reporter_uuid, score_challenger, score_challenged, match_id, created_at, expires_at, " +
+            "cancel_requested_by " +
             "FROM duel_challenge WHERE id = #{id}")
     Optional<DuelChallenge> findById(@Param("id") Long id);
 
@@ -32,8 +33,23 @@ public interface DuelChallengeMapper {
                      @Param("newStatus") String newStatus);
 
     @Update("UPDATE duel_challenge SET status = 'CANCELLED' " +
-            "WHERE id = #{id} AND status IN ('PENDING', 'ACTIVE', 'REPORTED')")
+            "WHERE id = #{id} AND status = 'PENDING'")
     int cancel(@Param("id") Long id);
+
+    // Cancellation by mutual agreement (spec 003): each update is a compare-and-swap on the duel row.
+    @Update("UPDATE duel_challenge SET cancel_requested_by = #{requesterUuid} " +
+            "WHERE id = #{id} AND status IN ('ACTIVE', 'REPORTED') AND cancel_requested_by IS NULL")
+    int requestCancel(@Param("id") Long id, @Param("requesterUuid") UUID requesterUuid);
+
+    @Update("UPDATE duel_challenge SET status = 'CANCELLED' " +
+            "WHERE id = #{id} AND status IN ('ACTIVE', 'REPORTED') " +
+            "AND cancel_requested_by IS NOT NULL AND cancel_requested_by <> #{accepterUuid}")
+    int acceptCancel(@Param("id") Long id, @Param("accepterUuid") UUID accepterUuid);
+
+    @Update("UPDATE duel_challenge SET cancel_requested_by = NULL " +
+            "WHERE id = #{id} AND status IN ('ACTIVE', 'REPORTED') " +
+            "AND cancel_requested_by IS NOT NULL AND cancel_requested_by <> #{declinerUuid}")
+    int declineCancel(@Param("id") Long id, @Param("declinerUuid") UUID declinerUuid);
 
     @Update("UPDATE duel_challenge SET status = 'REPORTED', " +
             "reporter_uuid = #{reporterUuid}, " +

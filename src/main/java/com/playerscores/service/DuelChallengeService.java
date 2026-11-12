@@ -1,18 +1,23 @@
 package com.playerscores.service;
 
+import com.playerscores.client.MatchWebhookClient;
 import com.playerscores.dto.CreateDuelChallengeRequest;
 import com.playerscores.dto.CreateMatchRequest;
+import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.DuelChallengeResponse;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.PlayerSummaryResponse;
 import com.playerscores.dto.ReportDuelScoresRequest;
 import com.playerscores.dto.TeamRequest;
+import com.playerscores.exception.DuelCancelAlreadyRequestedException;
+import com.playerscores.exception.DuelCancelNeedsAgreementException;
 import com.playerscores.exception.DuelChallengeForbiddenException;
 import com.playerscores.exception.DuelChallengeNotFoundException;
 import com.playerscores.exception.DuelChallengeNotPendingException;
 import com.playerscores.exception.DuplicatePlayerInMatchException;
 import com.playerscores.exception.GameTypeNotFoundException;
 import com.playerscores.exception.InvalidTeamSizeException;
+import com.playerscores.exception.NoActiveRankedSeasonException;
 import com.playerscores.exception.PlayerNotFoundException;
 import com.playerscores.exception.PlayerNotInPartyException;
 import com.playerscores.mapper.DuelChallengeMapper;
@@ -53,6 +58,7 @@ public class DuelChallengeService {
     private final PartyMemberMapper partyMemberMapper;
     private final MatchService matchService;
     private final UsernameCache usernameCache;
+    private final MatchWebhookClient matchWebhookClient;
 
     @Value("${duel.challenge-ttl-minutes:60}")
     private int challengeTtlMinutes;
@@ -194,6 +200,10 @@ public class DuelChallengeService {
         if (!callerUuid.equals(challenge.getChallengerUuid()) && !callerUuid.equals(challenge.getChallengedUuid())) {
             throw new DuelChallengeForbiddenException("Only a participant can cancel a duel challenge");
         }
+        // Once accepted, a duel is only cancelled with the other player's agreement (spec 003)
+        if (isCancellable(challenge)) {
+            throw new DuelCancelNeedsAgreementException(id, challenge.getStatus());
+        }
 
         int updated = duelChallengeMapper.cancel(id);
         if (updated == 0) {
@@ -202,6 +212,72 @@ public class DuelChallengeService {
         log.info("Duel challenge cancelled: id={}", id);
         challenge.setStatus("CANCELLED");
         return toResponse(challenge);
+    }
+
+    /**
+     * Asks the other participant to agree to cancel an ACTIVE or REPORTED duel (spec 003). Only the request is
+     * recorded here; the duel is cancelled by {@link #acceptCancel}.
+     */
+    @Transactional
+    public DuelChallengeResponse requestCancel(Long id, String discordId) {
+        DuelChallenge challenge = findOrThrow(id);
+        UUID callerUuid = resolveDiscordId(discordId);
+        requireParticipant(challenge, callerUuid);
+
+        if (duelChallengeMapper.requestCancel(id, callerUuid) == 0) {
+            // not cancellable, or a request already waits: told apart by what the row holds now
+            DuelChallenge current = findOrThrow(id);
+            if (isCancellable(current) && current.getCancelRequestedBy() != null) {
+                throw new DuelCancelAlreadyRequestedException(id);
+            }
+            throw new DuelChallengeNotPendingException(id, current.getStatus());
+        }
+        log.info("Duel cancellation requested: id={}, requester={}", id, callerUuid);
+        challenge.setCancelRequestedBy(callerUuid);
+        return toResponse(challenge);
+    }
+
+    /** The other participant agrees: the duel is cancelled and the bot is told so that it closes the channel. */
+    @Transactional
+    public DuelChallengeResponse acceptCancel(Long id, String discordId) {
+        DuelChallenge challenge = findOrThrow(id);
+        UUID callerUuid = resolveDiscordId(discordId);
+        requireParticipant(challenge, callerUuid);
+        requireNotRequester(challenge, callerUuid);
+
+        if (duelChallengeMapper.acceptCancel(id, callerUuid) == 0) {
+            throw new DuelChallengeNotPendingException(id, findOrThrow(id).getStatus());
+        }
+        log.info("Duel cancelled by agreement: id={}, accepter={}", id, callerUuid);
+        challenge.setStatus("CANCELLED");
+        matchWebhookClient.notifyDuelCancelled(new DuelCancelledPayload(id, DuelCancelledPayload.REASON_AGREEMENT));
+        return toResponse(challenge);
+    }
+
+    /** The other participant declines: the request is cleared and the duel goes on. */
+    @Transactional
+    public DuelChallengeResponse declineCancel(Long id, String discordId) {
+        DuelChallenge challenge = findOrThrow(id);
+        UUID callerUuid = resolveDiscordId(discordId);
+        requireParticipant(challenge, callerUuid);
+        requireNotRequester(challenge, callerUuid);
+
+        if (duelChallengeMapper.declineCancel(id, callerUuid) == 0) {
+            throw new DuelChallengeNotPendingException(id, findOrThrow(id).getStatus());
+        }
+        log.info("Duel cancellation declined: id={}, decliner={}", id, callerUuid);
+        challenge.setCancelRequestedBy(null);
+        return toResponse(challenge);
+    }
+
+    private static boolean isCancellable(DuelChallenge challenge) {
+        return "ACTIVE".equals(challenge.getStatus()) || "REPORTED".equals(challenge.getStatus());
+    }
+
+    private void requireNotRequester(DuelChallenge challenge, UUID callerUuid) {
+        if (callerUuid.equals(challenge.getCancelRequestedBy())) {
+            throw new DuelChallengeForbiddenException("The player who asked to cancel cannot answer their own request");
+        }
     }
 
     @Transactional
@@ -224,7 +300,7 @@ public class DuelChallengeService {
         return toResponse(challenge);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = NoActiveRankedSeasonException.class)
     public DuelChallengeResponse confirmScores(Long id, String confirmerDiscordId) {
         DuelChallenge challenge = findOrThrow(id);
         UUID confirmerUuid = resolveDiscordId(confirmerDiscordId);
@@ -257,6 +333,14 @@ public class DuelChallengeService {
         MatchResponse match;
         try {
             match = matchService.createMatch(matchRequest);
+        } catch (NoActiveRankedSeasonException e) {
+            // The season was deactivated while the duel was played: no match can be made, ever. Cancel the duel
+            // (a system decision, not a player's, spec 003) and tell the bot so that it closes the channel. The
+            // exception does not roll the transaction back (noRollbackFor), so the cancellation is committed.
+            duelChallengeMapper.updateStatus(id, "CONFIRMING", "CANCELLED");
+            matchWebhookClient.notifyDuelCancelled(
+                    new DuelCancelledPayload(id, DuelCancelledPayload.REASON_NO_ACTIVE_SEASON));
+            throw e;
         } catch (RuntimeException e) {
             duelChallengeMapper.updateStatus(id, "CONFIRMING", "REPORTED");
             throw e;
@@ -353,7 +437,8 @@ public class DuelChallengeService {
                 c.getScoreChallenged(),
                 c.getMatchId(),
                 c.getCreatedAt(),
-                c.getExpiresAt()
+                c.getExpiresAt(),
+                c.getCancelRequestedBy()
         );
     }
 

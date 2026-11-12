@@ -19,5 +19,6 @@ public record DuelChallengeResponse(
         Integer scoreChallenged,
         Long matchId,
         OffsetDateTime createdAt,
-        OffsetDateTime expiresAt
+        OffsetDateTime expiresAt,
+        UUID cancelRequestedBy
 ) {}

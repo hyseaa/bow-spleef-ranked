@@ -72,7 +72,10 @@ public class MatchService {
      * via a compare-and-swap claim on the challenge's status. A caller that can be retried must use
      * {@link #recordMatch} with an idempotency key.
      */
-    @Transactional
+    // NoActiveRankedSeasonException is thrown before anything is written (only reads and locks have happened), so
+    // it must not mark the surrounding transaction rollback-only: a duel confirmation commits its own cancellation
+    // when it hits it (spec 003). Keep that check before any write.
+    @Transactional(noRollbackFor = NoActiveRankedSeasonException.class)
     public MatchResponse createMatch(CreateMatchRequest request) {
         return recordMatch(request, null).match();
     }
@@ -86,7 +89,7 @@ public class MatchService {
      *
      * @param idempotencyKey the caller's key, or null for no protection
      */
-    @Transactional
+    @Transactional(noRollbackFor = NoActiveRankedSeasonException.class)
     public MatchRecording recordMatch(CreateMatchRequest request, String idempotencyKey) {
         if (idempotencyKey != null) {
             matchMapper.lockIdempotencyKey(request.source(), idempotencyKey);

@@ -1,6 +1,7 @@
 package com.playerscores.client;
 
 import com.playerscores.config.WebhookProperties;
+import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.MatchWebhookPayload;
 import com.playerscores.dto.RankSnapshotPayload;
 import jakarta.annotation.PreDestroy;
@@ -76,6 +77,13 @@ public class MatchWebhookClient {
             return;
         }
         afterCommit(() -> post(payload, "Ranks-updated webhook failed: seasonId=" + payload.seasonId()));
+    }
+
+    public void notifyDuelCancelled(DuelCancelledPayload payload) {
+        if (!properties.enabled()) {
+            return;
+        }
+        afterCommit(() -> post(payload, "Duel-cancelled webhook failed: duelId=" + payload.duelId()));
     }
 
     private void afterCommit(Runnable send) {

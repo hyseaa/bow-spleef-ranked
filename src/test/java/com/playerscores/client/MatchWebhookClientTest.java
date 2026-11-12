@@ -1,6 +1,7 @@
 package com.playerscores.client;
 
 import com.playerscores.config.WebhookProperties;
+import com.playerscores.dto.DuelCancelledPayload;
 import com.playerscores.dto.MatchResponse;
 import com.playerscores.dto.MatchWebhookPayload;
 import com.playerscores.dto.RankSnapshotPayload;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -110,6 +112,40 @@ class MatchWebhookClientTest {
 
         client(true).notifyRanksUpdated(ranks());
 
+        server.verify();
+    }
+
+    @Test
+    void duelCancelledIsSentWithItsEventDuelAndReason_REQ_003_10() {
+        server.expect(requestTo(URL)).andExpect(method(POST)).andExpect(header("Authorization", "Bearer secret"))
+                .andExpect(jsonPath("$.event").value("DUEL_CANCELLED"))
+                .andExpect(jsonPath("$.duelId").value(894))
+                .andExpect(jsonPath("$.reason").value("AGREEMENT"))
+                .andRespond(withSuccess());
+
+        client(true).notifyDuelCancelled(new DuelCancelledPayload(894L, "AGREEMENT"));
+
+        server.verify();
+    }
+
+    @Test
+    void duelCancelledIsNotSentBeforeCommitNorAfterARollback_REQ_003_10() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        client(true).notifyDuelCancelled(new DuelCancelledPayload(894L, "AGREEMENT"));
+        assertThat(executed).as("nothing before the commit").isEmpty();
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+        assertThat(executed).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void duelCancelledIsNotSentWhenTheWebhookIsDisabled_REQ_003_10() {
+        client(false).notifyDuelCancelled(new DuelCancelledPayload(894L, "AGREEMENT"));
+
+        assertThat(executed).isEmpty();
         server.verify();
     }
 

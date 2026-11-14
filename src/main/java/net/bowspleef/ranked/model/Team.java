@@ -1,0 +1,10 @@
+package net.bowspleef.ranked.model;
+
+import lombok.Data;
+
+@Data
+public class Team {
+    private Long id;
+    private Long matchId;
+    private int score;
+}

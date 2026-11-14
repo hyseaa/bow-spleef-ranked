@@ -1,0 +1,15 @@
+package net.bowspleef.ranked.model;
+
+import lombok.Data;
+
+import java.util.UUID;
+
+@Data
+public class PlayerSeasonElo {
+    private UUID playerUuid;
+    private Long rankedSeasonId;
+    private int elo;
+    private double mu;
+    private double sigma;
+    private int matchesPlayed;
+}

@@ -1,0 +1,89 @@
+package net.bowspleef.ranked.service;
+
+import net.bowspleef.ranked.dto.PlayerResponse;
+import net.bowspleef.ranked.exception.PlayerNotFoundException;
+import net.bowspleef.ranked.mapper.LeaderboardMapper;
+import net.bowspleef.ranked.mapper.PlayerMapper;
+import net.bowspleef.ranked.model.Player;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class PlayerServiceTest {
+
+    @Mock
+    private PlayerMapper playerMapper;
+    @Mock
+    private LeaderboardMapper leaderboardMapper;
+    @Mock
+    private UsernameCache usernameCache;
+
+    @InjectMocks
+    private PlayerService playerService;
+
+    @Test
+    void upsertPlayer_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
+        when(usernameCache.get(uuid)).thenReturn("Notch");
+
+        PlayerResponse response = playerService.upsertPlayer(uuid);
+
+        assertThat(response.uuid()).isEqualTo(uuid);
+        assertThat(response.username()).isEqualTo("Notch");
+    }
+
+    @Test
+    void getPlayerByDiscordId_notFound_throwsException() {
+        when(playerMapper.findByDiscordId("999")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playerService.getPlayerByDiscordId("999"))
+                .isInstanceOf(PlayerNotFoundException.class);
+    }
+
+    @Test
+    void getPlayerByDiscordId_found_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player();
+        player.setUuid(uuid);
+        player.setDiscordId("123456789");
+        when(playerMapper.findByDiscordId("123456789")).thenReturn(Optional.of(player));
+        when(usernameCache.get(uuid)).thenReturn("Notch");
+
+        PlayerResponse response = playerService.getPlayerByDiscordId("123456789");
+
+        assertThat(response.uuid()).isEqualTo(uuid);
+        assertThat(response.username()).isEqualTo("Notch");
+    }
+
+    @Test
+    void getPlayer_notFound_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playerService.getPlayer(uuid))
+                .isInstanceOf(PlayerNotFoundException.class);
+    }
+
+    @Test
+    void getPlayer_found_returnsResponse() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player();
+        player.setUuid(uuid);
+        when(playerMapper.findByUuid(uuid)).thenReturn(Optional.of(player));
+        when(usernameCache.get(uuid)).thenReturn("Notch");
+
+        PlayerResponse response = playerService.getPlayer(uuid);
+
+        assertThat(response.username()).isEqualTo("Notch");
+    }
+}

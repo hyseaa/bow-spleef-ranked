@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.playerscores</groupId>
+    <groupId>net.bowspleef.ranked</groupId>
     <artifactId>api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>player-scores-api</name>
-    <description>REST API for recording and retrieving player scores</description>
+    <name>bowspleef-ranked-api</name>
+    <description>REST API of Bow Spleef Ranked: players, matches, ratings, seasons, queue, duels and parties</description>
 
     <properties>
         <java.version>21</java.version>
@@ -130,7 +130,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.playerscores.ApiApplication</mainClass>
+                    <mainClass>net.bowspleef.ranked.ApiApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -164,11 +164,11 @@
                         </goals>
                         <configuration>
                             <excludes>
-                                <exclude>com/playerscores/dto/**</exclude>
-                                <exclude>com/playerscores/model/**</exclude>
-                                <exclude>com/playerscores/ApiApplication.class</exclude>
-                                <exclude>com/playerscores/config/**</exclude>
-                                <exclude>com/playerscores/mapper/ScoreSqlProvider.class</exclude>
+                                <exclude>net/bowspleef/ranked/dto/**</exclude>
+                                <exclude>net/bowspleef/ranked/model/**</exclude>
+                                <exclude>net/bowspleef/ranked/ApiApplication.class</exclude>
+                                <exclude>net/bowspleef/ranked/config/**</exclude>
+                                <exclude>net/bowspleef/ranked/mapper/ScoreSqlProvider.class</exclude>
                             </excludes>
                             <rules>
                                 <rule>

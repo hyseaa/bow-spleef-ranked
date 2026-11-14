@@ -1,0 +1,9 @@
+package net.bowspleef.ranked.model;
+
+import lombok.Data;
+
+@Data
+public class RankTitle {
+    private double minPercentile;
+    private String name;
+}

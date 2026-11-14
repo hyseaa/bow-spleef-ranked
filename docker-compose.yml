@@ -1,22 +1,10 @@
+# The API of Bow Spleef Ranked. Its PostgreSQL database runs in a stack of its own (ADR-0018): deploy/db/docker-compose.yml.
+# One-time set-up and migration: docs/operations/deployment.md. The two stacks share the external network ranked-net,
+# and the API reaches the database as bowspleef-ranked-db. POSTGRES_* of .env must equal those of deploy/db/.env.
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: playerscores-db
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "5400:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   api:
     build: .
-    container_name: playerscores-api
+    container_name: bowspleef-ranked-api
     restart: unless-stopped
     ports:
       - "8085:8080"
@@ -24,20 +12,19 @@ services:
     environment:
       # the container runs the prod profile (health endpoint only, quieter logs); application.properties defaults to dev (KI-20)
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      # no depends_on across stacks: if the database is not up yet, the API stops and the restart policy retries
+      SPRING_DATASOURCE_URL: jdbc:postgresql://bowspleef-ranked-db:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - ranked-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 40s
-    depends_on:
-      postgres:
-        condition: service_healthy
 
-# Le volume nommé persiste les données entre arrêts (docker compose down).
-# Seul "docker compose down -v" supprime les données.
-volumes:
-  postgres_data:
+networks:
+  ranked-net:
+    external: true   # docker network create ranked-net (once)

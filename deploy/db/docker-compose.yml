@@ -1,0 +1,38 @@
+# Production database of Bow Spleef Ranked, in a stack of its own (ADR-0018).
+#
+# Start (from the repository root on the VPS), after the one-time set-up of docs/operations/deployment.md:
+#   docker compose -f deploy/db/docker-compose.yml up -d
+# The values come from deploy/db/.env (same POSTGRES_* as the API's .env). Never `down -v` the API stack: the data
+# lives in the external volume below, which no `down -v` removes.
+name: ranked-db
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bowspleef-ranked-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set it in deploy/db/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?set it in deploy/db/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in deploy/db/.env}
+    ports:
+      # Local to the VPS (KI-50): reach it from a workstation through an SSH tunnel
+      - "127.0.0.1:5400:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - ranked-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+    external: true
+    name: bowspleef-ranked-pgdata   # docker volume create bowspleef-ranked-pgdata (once)
+
+networks:
+  ranked-net:
+    external: true                  # docker network create ranked-net (once); the API joins it too

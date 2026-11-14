@@ -2,6 +2,7 @@ package net.bowspleef.ranked.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -150,6 +151,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PartyFullException.class)
     public ProblemDetail handlePartyFull(PartyFullException ex) {
         return problem(HttpStatus.CONFLICT, "PARTY_FULL", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidPreferenceException.class)
+    public ProblemDetail handleInvalidPreference(InvalidPreferenceException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());
+    }
+
+    // A body that is not JSON, or whose field is not of the expected kind (spec 016: 3.5 or "40" for a whole number)
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "The request body is missing or not valid");
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

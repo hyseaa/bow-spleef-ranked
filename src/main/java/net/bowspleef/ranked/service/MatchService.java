@@ -296,7 +296,21 @@ public class MatchService {
         log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
         Map<UUID, Map<String, Object>> stats = playerStats.isEmpty() ? null : playerStats;
         return new MatchResponse(match.getId(), match.getGameType(), displayName,
-                match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats);
+                match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats,
+                readModifiers(match));
+    }
+
+    /** The modifiers of a match as a map; null when it carries none or the stored JSON cannot be read. */
+    private Map<String, Object> readModifiers(Match match) {
+        if (match.getModifiers() == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(match.getModifiers(), new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.warn("Failed to deserialize modifiers for matchId={}: {}", match.getId(), e.getMessage());
+            return null;
+        }
     }
 
     private Map<UUID, String> titlesOfSeason(Long seasonId) {

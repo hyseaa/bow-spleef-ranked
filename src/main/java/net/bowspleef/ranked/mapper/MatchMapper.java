@@ -17,14 +17,15 @@ public interface MatchMapper {
 
     // clock_timestamp(), not NOW(): NOW() is the start of the transaction, and a ranked match must be dated
     // after it has obtained the season lock so that played_at order is the order in which it was rated (KI-28).
-    @Insert("INSERT INTO match (game_type, source, played_at, idempotency_key) VALUES (#{gameType}, #{source}, clock_timestamp(), #{idempotencyKey})")
+    @Insert("INSERT INTO match (game_type, source, played_at, idempotency_key, modifiers) "
+            + "VALUES (#{gameType}, #{source}, clock_timestamp(), #{idempotencyKey}, CAST(#{modifiers, jdbcType=VARCHAR} AS jsonb))")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Match match);
 
     @Update("UPDATE match SET ranked_season_id = #{rankedSeasonId} WHERE id = #{matchId}")
     void updateRankedSeasonId(@Param("matchId") Long matchId, @Param("rankedSeasonId") Long rankedSeasonId);
 
-    @Select("SELECT id, game_type, source, played_at, ranked_season_id FROM match WHERE id = #{id}")
+    @Select("SELECT id, game_type, source, played_at, ranked_season_id, modifiers::text AS modifiers FROM match WHERE id = #{id}")
     Optional<Match> findById(Long id);
 
     @Select("SELECT id, game_type, source, played_at, ranked_season_id FROM match WHERE game_type = #{gameType} ORDER BY played_at DESC LIMIT #{limit} OFFSET #{offset}")

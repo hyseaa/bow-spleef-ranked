@@ -9,15 +9,15 @@ import net.bowspleef.ranked.dto.PreferencesResponse;
 import net.bowspleef.ranked.dto.UpdatePreferencesRequest;
 import net.bowspleef.ranked.service.PlayerPreferenceService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-/** The preferences of a player (spec 016, ADR-0023): read with the defaults, changed field by field. */
+/** The preferences of a player (spec 016, ADR-0023): read with the defaults, set field by field. */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/players/{uuid}/preferences")
@@ -36,12 +36,12 @@ public class PlayerPreferenceController {
         return response;
     }
 
-    @PatchMapping
-    @Operation(summary = "Change the preferences of a player (creates the player if the API does not know it)")
+    @PutMapping
+    @Operation(summary = "Set the preferences that are in the body, the others keep their value (creates the player if the API does not know it)")
     public PreferencesResponse updatePreferences(@PathVariable UUID uuid, @Valid @RequestBody UpdatePreferencesRequest request) {
-        log.info("Call to API: PATCH /api/v1/players/{}/preferences with parameters: uuid={}, request={}", uuid, uuid, request);
+        log.info("Call to API: PUT /api/v1/players/{}/preferences with parameters: uuid={}, request={}", uuid, uuid, request);
         PreferencesResponse response = preferenceService.update(uuid, request);
-        log.info("Call to API: PATCH /api/v1/players/{}/preferences completed", uuid);
+        log.info("Call to API: PUT /api/v1/players/{}/preferences completed", uuid);
         return response;
     }
 }

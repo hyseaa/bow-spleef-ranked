@@ -1,6 +1,6 @@
 package net.bowspleef.ranked.mapper;
 
-import net.bowspleef.ranked.dto.PlayerCasualStatsRow;
+import net.bowspleef.ranked.dto.PlayerGameTypeStatsRow;
 import net.bowspleef.ranked.dto.PlayerRankedStatsResponse;
 import net.bowspleef.ranked.dto.PlayerSeasonEloRow;
 import org.apache.ibatis.annotations.Mapper;
@@ -14,7 +14,8 @@ import java.util.UUID;
 @Mapper
 public interface PlayerStatsMapper {
 
-    @Select("SELECT COUNT(DISTINCT m.id) AS matches_played, "
+    @Select("SELECT g.name AS game_type, g.display_name AS game_type_display_name, "
+            + "COUNT(DISTINCT m.id) AS matches_played, "
             + "COUNT(CASE WHEN t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = m.id AND t2.id <> t.id) THEN 1 END) AS wins, "
             // a draw: the player's team shares the best score
             + "COUNT(CASE WHEN t.score = (SELECT MAX(t2.score) FROM team t2 WHERE t2.match_id = m.id) "
@@ -23,8 +24,10 @@ public interface PlayerStatsMapper {
             + "JOIN game_types g ON g.name = m.game_type AND g.ranked = FALSE "
             + "JOIN team t ON t.match_id = m.id "
             + "JOIN team_player tp ON tp.team_id = t.id "
-            + "WHERE tp.player_uuid = #{playerUuid}")
-    PlayerCasualStatsRow findCasualStats(UUID playerUuid);
+            + "WHERE tp.player_uuid = #{playerUuid} "
+            + "GROUP BY g.name, g.display_name "
+            + "ORDER BY matches_played DESC, g.name")
+    List<PlayerGameTypeStatsRow> findNonRankedStats(UUID playerUuid);
 
     @Select("SELECT rs.id AS season_id, rs.name AS season_name, rs.game_type, "
             + "pse.elo, pse.matches_played, "

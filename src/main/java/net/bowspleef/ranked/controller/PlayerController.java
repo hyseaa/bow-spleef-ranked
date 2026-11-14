@@ -87,7 +87,7 @@ public class PlayerController {
     }
 
     @GetMapping("/{uuid}/stats")
-    @Operation(summary = "Get casual and ranked stats for a player (ranked = active seasons only)")
+    @Operation(summary = "Get the stats of a player: one line per non-ranked game type played, and the ranked stats of the active seasons")
     public PlayerStatsResponse getPlayerStats(@PathVariable UUID uuid) {
         log.info("Call to API: GET /api/v1/players/{}/stats with parameters: uuid={}", uuid, uuid);
         PlayerStatsResponse response = playerService.getPlayerStats(uuid);

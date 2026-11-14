@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record PlayerStatsResponse(
         UUID uuid,
-        PlayerCasualStatsResponse casual,
-        List<PlayerRankedStatsResponse> ranked
+        List<PlayerRankedStatsResponse> ranked,
+        /** One entry per non-ranked game type the player has played, the most played first; no total (ADR-0022). */
+        List<PlayerGameTypeStatsResponse> gameTypes
 ) {}

@@ -84,4 +84,22 @@ class PlayerControllerTest {
         mockMvc.perform(get("/api/v1/players/leaderboard").param("size", "200"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void stats_listTheNonRankedGameTypesAndHaveNoCasualBlock_REQ_011_03() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        when(playerService.getPlayerStats(uuid)).thenReturn(new net.bowspleef.ranked.dto.PlayerStatsResponse(uuid, List.of(),
+                List.of(new net.bowspleef.ranked.dto.PlayerGameTypeStatsResponse("bowspleef_classic", "Bow Spleef Classic", 6, 3, 2, 1))));
+
+        mockMvc.perform(get("/api/v1/players/" + uuid + "/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.casual").doesNotExist())
+                .andExpect(jsonPath("$.gameTypes[0].gameType").value("bowspleef_classic"))
+                .andExpect(jsonPath("$.gameTypes[0].gameTypeDisplayName").value("Bow Spleef Classic"))
+                .andExpect(jsonPath("$.gameTypes[0].matchesPlayed").value(6))
+                .andExpect(jsonPath("$.gameTypes[0].wins").value(3))
+                .andExpect(jsonPath("$.gameTypes[0].losses").value(2))
+                .andExpect(jsonPath("$.gameTypes[0].draws").value(1))
+                .andExpect(jsonPath("$.ranked").isArray());
+    }
 }

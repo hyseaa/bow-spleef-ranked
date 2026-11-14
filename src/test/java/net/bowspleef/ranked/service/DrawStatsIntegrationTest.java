@@ -59,7 +59,7 @@ class DrawStatsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void casualStatsCountAWinADrawAndALossApart() {
+    void nonRankedStatsCountAWinADrawAndALossApart_REQ_011_03() {
         String gameType = gameType(false);
         UUID alice = UUID.randomUUID();
         UUID bob = UUID.randomUUID();
@@ -70,10 +70,13 @@ class DrawStatsIntegrationTest extends AbstractIntegrationTest {
 
         PlayerStatsResponse stats = playerService.getPlayerStats(alice);
 
-        assertThat(stats.casual().matchesPlayed()).isEqualTo(4);
-        assertThat(stats.casual().wins()).isEqualTo(1);
-        assertThat(stats.casual().draws()).isEqualTo(2);
-        assertThat(stats.casual().losses()).isEqualTo(1);
+        assertThat(stats.gameTypes()).singleElement().satisfies(line -> {
+            assertThat(line.gameType()).isEqualTo(gameType);
+            assertThat(line.matchesPlayed()).isEqualTo(4);
+            assertThat(line.wins()).isEqualTo(1);
+            assertThat(line.draws()).isEqualTo(2);
+            assertThat(line.losses()).isEqualTo(1);
+        });
     }
 
     @Test

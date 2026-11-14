@@ -6,8 +6,7 @@ import net.bowspleef.ranked.dto.MatchHistoryRow;
 import net.bowspleef.ranked.dto.OpponentRow;
 import net.bowspleef.ranked.dto.PlayerSummaryResponse;
 import net.bowspleef.ranked.dto.PageResponse;
-import net.bowspleef.ranked.dto.PlayerCasualStatsResponse;
-import net.bowspleef.ranked.dto.PlayerCasualStatsRow;
+import net.bowspleef.ranked.dto.PlayerGameTypeStatsResponse;
 import net.bowspleef.ranked.dto.PlayerSeasonEloResponse;
 import net.bowspleef.ranked.dto.PlayerSeasonEloRow;
 import net.bowspleef.ranked.dto.PlayerStatsResponse;
@@ -107,14 +106,13 @@ public class PlayerService {
             return new PlayerNotFoundException(uuid);
         });
 
-        PlayerCasualStatsRow casual = playerStatsMapper.findCasualStats(uuid);
-        PlayerStatsResponse response = new PlayerStatsResponse(
-                uuid,
-                new PlayerCasualStatsResponse(casual.getMatchesPlayed(), casual.getWins(),
-                        casual.getMatchesPlayed() - casual.getWins() - casual.getDraws(), casual.getDraws()),
-                playerStatsMapper.findActiveRankedStats(uuid)
-        );
-        log.debug("Stats fetched for uuid={}: casualMatches={}, rankedSeasons={}", uuid, casual.getMatchesPlayed(), response.ranked().size());
+        List<PlayerGameTypeStatsResponse> gameTypes = playerStatsMapper.findNonRankedStats(uuid).stream()
+                .map(row -> new PlayerGameTypeStatsResponse(row.getGameType(), row.getGameTypeDisplayName(),
+                        row.getMatchesPlayed(), row.getWins(),
+                        row.getMatchesPlayed() - row.getWins() - row.getDraws(), row.getDraws()))
+                .toList();
+        PlayerStatsResponse response = new PlayerStatsResponse(uuid, playerStatsMapper.findActiveRankedStats(uuid), gameTypes);
+        log.debug("Stats fetched for uuid={}: nonRankedGameTypes={}, rankedSeasons={}", uuid, gameTypes.size(), response.ranked().size());
         return response;
     }
 

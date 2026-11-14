@@ -55,7 +55,7 @@ class MatchIdempotencyMigrationIntegrationTest {
         assertThat(after).hasSameSizeAs(matchesBefore);
         for (int i = 0; i < after.size(); i++) {
             assertThat(after.get(i)).startsWith(matchesBefore.get(i));
-            assertThat(after.get(i)).endsWith("idempotency_key=null;");
+            assertThat(after.get(i)).contains("idempotency_key=null;"); // later migrations add columns after it
         }
         assertThat(rows("SELECT * FROM elo_history ORDER BY id")).isEqualTo(historyBefore);
     }

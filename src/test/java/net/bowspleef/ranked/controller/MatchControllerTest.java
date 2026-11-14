@@ -132,6 +132,109 @@ class MatchControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    /** A match body as the plugin sends it, with the raw JSON of its modifiers (spec 010). */
+    private String bodyWithModifiers(String modifiersJson) {
+        return "{\"gameType\":\"BEDWARS\",\"source\":\"hysea-server\",\"teams\":["
+                + "{\"score\":1,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]},"
+                + "{\"score\":0,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]}]"
+                + (modifiersJson == null ? "" : ",\"modifiers\":" + modifiersJson) + "}";
+    }
+
+    private static String entries(int count) {
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < count; i++) {
+            json.append(i == 0 ? "" : ",").append("\"m").append(i).append("\":true");
+        }
+        return json.append("}").toString();
+    }
+
+    @Test
+    void createMatch_withModifiers_passesThemToTheService_REQ_010_08() throws Exception {
+        when(matchService.recordMatch(any(), isNull())).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers("{\"no-collision\":true,\"perks\":20}")))
+                .andExpect(status().isCreated());
+
+        org.mockito.ArgumentCaptor<CreateMatchRequest> sent = org.mockito.ArgumentCaptor.forClass(CreateMatchRequest.class);
+        org.mockito.Mockito.verify(matchService).recordMatch(sent.capture(), isNull());
+        org.assertj.core.api.Assertions.assertThat(sent.getValue().modifiers())
+                .isEqualTo(java.util.Map.of("no-collision", true, "perks", 20));
+    }
+
+    @Test
+    void createMatch_withoutModifiers_isStillAccepted_REQ_010_09() throws Exception {
+        when(matchService.recordMatch(any(), isNull())).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers(null)))
+                .andExpect(status().isCreated());
+
+        org.mockito.ArgumentCaptor<CreateMatchRequest> sent = org.mockito.ArgumentCaptor.forClass(CreateMatchRequest.class);
+        org.mockito.Mockito.verify(matchService).recordMatch(sent.capture(), isNull());
+        org.assertj.core.api.Assertions.assertThat(sent.getValue().modifiers()).isNull();
+    }
+
+    @Test
+    void createMatch_emptyModifiers_isAccepted_REQ_010_08() throws Exception {
+        when(matchService.recordMatch(any(), isNull())).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers("{}")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createMatch_twentyModifiers_isAccepted_REQ_010_08() throws Exception {
+        when(matchService.recordMatch(any(), isNull())).thenReturn(new MatchRecording(stored(), true));
+
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers(entries(20))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createMatch_twentyOneModifiers_returns400_REQ_010_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers(entries(21))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void createMatch_aKeyOfFiftyOneCharacters_returns400_REQ_010_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers("{\"" + "k".repeat(51) + "\":true}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void createMatch_aNestedModifierValue_returns400_REQ_010_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers("{\"perks\":{\"deep\":1}}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void createMatch_modifiersThatAreNotAnObject_returns400_REQ_010_08() throws Exception {
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers("[\"no-collision\"]")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getMatch_returnsItsModifiers_REQ_010_08() throws Exception {
+        MatchResponse withModifiers = new MatchResponse(5L, "BEDWARS", "Bed Wars", "hysea-server", OffsetDateTime.now(),
+                List.of(), null, null, java.util.Map.of("perks", 20));
+        when(matchService.getMatch(5L)).thenReturn(withModifiers);
+
+        mockMvc.perform(get("/api/v1/matches/5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modifiers.perks").value(20));
+    }
+
     private String body() throws Exception {
         return objectMapper.writeValueAsString(new CreateMatchRequest("BEDWARS", "hysea-server",
                 List.of(new TeamRequest(3, List.of(UUID.randomUUID())),

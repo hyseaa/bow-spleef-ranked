@@ -430,6 +430,36 @@ class MatchServiceTest {
     }
 
     @Test
+    void recordMatch_modifiers_areStoredAsJson_REQ_010_08() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        newMatchWithId(1L);
+
+        matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(uuid)), new TeamRequest(1, List.of())), null,
+                java.util.Map.of("no-collision", true, "perks", 20)), null);
+
+        ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
+        verify(matchMapper).insert(inserted.capture());
+        assertThat(new ObjectMapper().readTree(inserted.getValue().getModifiers()))
+                .isEqualTo(new ObjectMapper().readTree("{\"no-collision\":true,\"perks\":20}"));
+    }
+
+    @Test
+    void recordMatch_noModifiers_storeNone_REQ_010_09() {
+        UUID uuid = UUID.randomUUID();
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        newMatchWithId(1L);
+
+        matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(uuid)), new TeamRequest(1, List.of())), null), null);
+
+        ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
+        verify(matchMapper).insert(inserted.capture());
+        assertThat(inserted.getValue().getModifiers()).isNull();
+    }
+
+    @Test
     void recordMatch_sameKeySameContent_returnsTheExistingMatchWithoutSideEffect_REQ_002_02_REQ_002_03() {
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();

@@ -135,6 +135,7 @@ public class MatchService {
         match.setGameType(request.gameType());
         match.setSource(request.source());
         match.setIdempotencyKey(idempotencyKey);
+        match.setModifiers(modifiersJson(request.modifiers()));
         matchMapper.insert(match);
         log.debug("Match row inserted: id={}", match.getId());
 
@@ -298,6 +299,19 @@ public class MatchService {
         return new MatchResponse(match.getId(), match.getGameType(), displayName,
                 match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats,
                 readModifiers(match));
+    }
+
+    /** The modifiers sent with a match as the JSON that is stored; null when the client sent none. */
+    private String modifiersJson(Map<String, Object> modifiers) {
+        if (modifiers == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(modifiers);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize modifiers: {}", e.getMessage(), e);
+            throw new IllegalArgumentException("Invalid modifiers", e);
+        }
     }
 
     /** The modifiers of a match as a map; null when it carries none or the stored JSON cannot be read. */

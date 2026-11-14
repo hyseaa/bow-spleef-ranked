@@ -61,7 +61,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
         return String.valueOf(ThreadLocalRandom.current().nextLong(100_000_000_000_000_000L, 999_999_999_999_999_999L));
     }
 
-    private void casualGameType() {
+    private void nonRankedGameType() {
         gameTypeName = "EXPIRY_" + UUID.randomUUID().toString().substring(0, 8);
         GameType gameType = new GameType();
         gameType.setName(gameTypeName);
@@ -107,7 +107,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void acceptingADuelStartsItsClock_REQ_006_03() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(false);
 
         assertThat(hasActiveSince(id)).isTrue();
@@ -116,7 +116,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void disputingAScoreRestartsTheClock_REQ_006_03() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(true);
         setBackActiveSince(id, 30);
         assertThat(activeSinceIsRecent(id)).isFalse();
@@ -129,7 +129,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void reportingAndConfirmingDoNotTouchTheClock_REQ_006_03() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(false);
         setBackActiveSince(id, 10);
 
@@ -140,7 +140,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void anActiveDuelNobodyPlaysIsCancelledAndTheBotIsToldOnce_REQ_006_01() {
-        casualGameType();
+        nonRankedGameType();
         long stale = duel(false);
         long recent = duel(false);
         setBackActiveSince(stale, 25);
@@ -159,7 +159,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aSecondPassDoesNotCancelTwice_REQ_006_01() {
-        casualGameType();
+        nonRankedGameType();
         long stale = duel(false);
         setBackActiveSince(stale, 25);
         duelChallengeService.expireStaleActiveDuels();
@@ -172,7 +172,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aReportedDuelNeverExpires_REQ_006_04() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(true);
         setBackActiveSince(id, 100);
 
@@ -183,7 +183,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void anExpiryWritesNoMatchAndNoRating_REQ_006_05() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(false);
         setBackActiveSince(id, 25);
         long matchesBefore = jdbc.queryForObject("SELECT COUNT(*) FROM match WHERE game_type = ?", Long.class, gameTypeName);
@@ -198,7 +198,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aDuelDisputedJustBeforeIsNotExpired_REQ_006_03() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(true);
         setBackActiveSince(id, 30);
         duelChallengeService.disputeScores(id, challengedId);
@@ -210,7 +210,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aReportAndTheExpiryAtTheSameTimeHaveExactlyOneWinner_REQ_006_06() throws Exception {
-        casualGameType();
+        nonRankedGameType();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             for (int round = 0; round < ROUNDS; round++) {
@@ -248,7 +248,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aPlayerWhoLeftCancelsAnActiveOrReportedDuelWithNoResult_REQ_006_08() {
-        casualGameType();
+        nonRankedGameType();
         for (boolean reported : new boolean[] {false, true}) {
             clearInvocations(matchWebhookClient);
             long id = duel(reported);
@@ -267,7 +267,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void anOutsiderAndAClosedDuelAreRefused_REQ_006_10() {
-        casualGameType();
+        nonRankedGameType();
         long id = duel(false);
         UUID outsider = UUID.randomUUID();
         String outsiderId = discordId();

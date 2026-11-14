@@ -224,7 +224,7 @@ class MatchServiceTest {
 
     @Test
     void createMatch_unranked_teamSizeNotEnforced() {
-        // Casual game types accept arbitrary team compositions: team_size
+        // Non-ranked game types accept arbitrary team compositions: team_size
         // is only enforced for ranked game types.
         UUID p1 = UUID.randomUUID();
         UUID p2 = UUID.randomUUID();
@@ -328,7 +328,7 @@ class MatchServiceTest {
     }
 
     @Test
-    void deleteMatch_casual_doesNotMarkDirty() {
+    void deleteMatch_nonRanked_doesNotMarkDirty() {
         Match match = new Match();
         match.setId(2L);
         match.setGameType("BEDWARS");
@@ -354,7 +354,7 @@ class MatchServiceTest {
     private static final String SOURCE = "hysea-server";
     private static final String KEY = "game-1";
 
-    private GameType casual() {
+    private GameType nonRanked() {
         GameType gameType = new GameType();
         gameType.setName("BEDWARS");
         gameType.setDisplayName("Bed Wars");
@@ -413,7 +413,7 @@ class MatchServiceTest {
     void recordMatch_newKey_storesTheKeyAndCreates_REQ_002_01() {
         UUID uuid = UUID.randomUUID();
         when(matchMapper.findByIdempotencyKey(SOURCE, KEY)).thenReturn(Optional.empty());
-        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
         newMatchWithId(1L);
 
         MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
@@ -432,7 +432,7 @@ class MatchServiceTest {
     @Test
     void recordMatch_modifiers_areStoredAsJson_REQ_010_08() throws Exception {
         UUID uuid = UUID.randomUUID();
-        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
         newMatchWithId(1L);
 
         matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
@@ -448,7 +448,7 @@ class MatchServiceTest {
     @Test
     void recordMatch_noModifiers_storeNone_REQ_010_09() {
         UUID uuid = UUID.randomUUID();
-        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
         newMatchWithId(1L);
 
         matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
@@ -529,7 +529,7 @@ class MatchServiceTest {
     void recordMatch_sameKeyInAnotherSource_isANewMatch_REQ_002_07() {
         UUID uuid = UUID.randomUUID();
         when(matchMapper.findByIdempotencyKey("other", KEY)).thenReturn(Optional.empty());
-        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
         newMatchWithId(2L);
 
         MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", "other",
@@ -542,7 +542,7 @@ class MatchServiceTest {
     @Test
     void recordMatch_noKey_skipsTheLockAndTheLookup_REQ_002_06() {
         UUID uuid = UUID.randomUUID();
-        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(casual()));
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
         newMatchWithId(3L);
 
         MatchRecording recording = matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,

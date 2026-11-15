@@ -23,6 +23,8 @@
         <springdoc.version>2.6.0</springdoc.version>
         <lombok.version>1.18.34</lombok.version>
         <jacoco.version>0.8.14</jacoco.version>
+        <!-- Docker 29 (the GitHub runners) refuses the API 1.32 that the Testcontainers 1.19 of Spring Boot 3.3 speaks: 1.21.4 negotiates it -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>

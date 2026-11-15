@@ -4,6 +4,7 @@ import net.bowspleef.ranked.config.WebhookProperties;
 import net.bowspleef.ranked.dto.DuelCancelledPayload;
 import net.bowspleef.ranked.dto.MatchWebhookPayload;
 import net.bowspleef.ranked.dto.RankSnapshotPayload;
+import net.bowspleef.ranked.dto.ReplayAddedPayload;
 import net.bowspleef.ranked.dto.SeasonDeactivatedPayload;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -92,6 +93,14 @@ public class MatchWebhookClient {
             return;
         }
         afterCommit(() -> post(payload, "Season-deactivated webhook failed: seasonId=" + payload.seasonId()));
+    }
+
+    /** Spec 024: a match got its replay; the bot adds the line to its announcement. */
+    public void notifyReplayAdded(ReplayAddedPayload payload) {
+        if (!properties.enabled()) {
+            return;
+        }
+        afterCommit(() -> post(payload, "Replay-added webhook failed: matchId=" + payload.matchId()));
     }
 
     private void afterCommit(Runnable send) {

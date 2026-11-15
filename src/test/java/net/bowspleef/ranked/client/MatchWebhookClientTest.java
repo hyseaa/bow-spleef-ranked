@@ -5,6 +5,7 @@ import net.bowspleef.ranked.dto.DuelCancelledPayload;
 import net.bowspleef.ranked.dto.MatchResponse;
 import net.bowspleef.ranked.dto.MatchWebhookPayload;
 import net.bowspleef.ranked.dto.RankSnapshotPayload;
+import net.bowspleef.ranked.dto.ReplayAddedPayload;
 import net.bowspleef.ranked.dto.SeasonDeactivatedPayload;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -190,5 +191,38 @@ class MatchWebhookClientTest {
 
     private static RankSnapshotPayload ranks() {
         return new RankSnapshotPayload("RANKS_UPDATED", 1L, "gt", true, List.of());
+    }
+
+    @Test
+    void replayAddedIsSentWithItsEventAndMatch_REQ_024_19() {
+        server.expect(requestTo(URL)).andExpect(method(POST)).andExpect(header("Authorization", "Bearer secret"))
+                .andExpect(jsonPath("$.event").value("REPLAY_ADDED"))
+                .andExpect(jsonPath("$.matchId").value(412))
+                .andRespond(withSuccess());
+
+        client(true).notifyReplayAdded(new ReplayAddedPayload(412L));
+
+        server.verify();
+    }
+
+    @Test
+    void replayAddedIsNotSentBeforeCommitNorAfterARollback_REQ_024_19() {
+        TransactionSynchronizationManager.initSynchronization();
+
+        client(true).notifyReplayAdded(new ReplayAddedPayload(412L));
+        assertThat(executed).as("nothing before the commit").isEmpty();
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+        assertThat(executed).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void replayAddedIsNotSentWhenTheWebhookIsDisabled_REQ_024_19() {
+        client(false).notifyReplayAdded(new ReplayAddedPayload(412L));
+
+        assertThat(executed).isEmpty();
+        server.verify();
     }
 }

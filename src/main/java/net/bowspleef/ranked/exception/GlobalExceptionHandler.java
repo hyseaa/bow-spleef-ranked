@@ -153,6 +153,26 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "PARTY_FULL", ex.getMessage());
     }
 
+    @ExceptionHandler(ReplayAlreadyExistsException.class)
+    public ProblemDetail handleReplayAlreadyExists(ReplayAlreadyExistsException ex) {
+        return problem(HttpStatus.CONFLICT, "REPLAY_ALREADY_EXISTS", ex.getMessage());
+    }
+
+    @ExceptionHandler(ReplayNotFoundException.class)
+    public ProblemDetail handleReplayNotFound(ReplayNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "REPLAY_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(ReplayTooLargeException.class)
+    public ProblemDetail handleReplayTooLarge(ReplayTooLargeException ex) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "REPLAY_TOO_LARGE", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidReplayException.class)
+    public ProblemDetail handleInvalidReplay(InvalidReplayException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidPreferenceException.class)
     public ProblemDetail handleInvalidPreference(InvalidPreferenceException ex) {
         return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());

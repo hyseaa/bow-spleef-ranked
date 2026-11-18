@@ -158,6 +158,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "REPLAY_ALREADY_EXISTS", ex.getMessage());
     }
 
+    @ExceptionHandler(SourceAlreadyExistsException.class)
+    public ProblemDetail handleSourceAlreadyExists(SourceAlreadyExistsException ex) {
+        return problem(HttpStatus.CONFLICT, "SOURCE_ALREADY_EXISTS", ex.getMessage());
+    }
+
     @ExceptionHandler(ReplayNotFoundException.class)
     public ProblemDetail handleReplayNotFound(ReplayNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "REPLAY_NOT_FOUND", ex.getMessage());

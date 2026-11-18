@@ -20,12 +20,14 @@ import net.bowspleef.ranked.mapper.MatchMapper;
 import net.bowspleef.ranked.mapper.MatchPlayerStatMapper;
 import net.bowspleef.ranked.mapper.PlayerMapper;
 import net.bowspleef.ranked.mapper.RankedSeasonMapper;
+import net.bowspleef.ranked.mapper.SourceMapper;
 import net.bowspleef.ranked.mapper.TeamMapper;
 import net.bowspleef.ranked.mapper.TeamPlayerMapper;
 import net.bowspleef.ranked.model.GameType;
 import net.bowspleef.ranked.model.Match;
 import net.bowspleef.ranked.model.Player;
 import net.bowspleef.ranked.model.RankedSeason;
+import net.bowspleef.ranked.model.Source;
 import net.bowspleef.ranked.model.Team;
 import net.bowspleef.ranked.model.TeamPlayer;
 import org.junit.jupiter.api.Test;
@@ -72,6 +74,8 @@ class MatchServiceTest {
     private GameTypeMapper gameTypeMapper;
     @Mock
     private RankedSeasonMapper rankedSeasonMapper;
+    @Mock
+    private SourceMapper sourceMapper;
     @Mock
     private UsernameCache usernameCache;
     @Mock
@@ -269,6 +273,45 @@ class MatchServiceTest {
         MatchResponse response = matchService.createMatch(request);
 
         assertThat(response.gameType()).isEqualTo("BEDWARS");
+    }
+
+    private Match storedMatch(String source) {
+        Match match = new Match();
+        match.setId(7L);
+        match.setGameType("BEDWARS");
+        match.setSource(source);
+        match.setPlayedAt(OffsetDateTime.now());
+        when(matchMapper.findById(7L)).thenReturn(Optional.of(match));
+        when(teamMapper.findByMatchId(7L)).thenReturn(List.of());
+        return match;
+    }
+
+    @Test
+    void getMatch_registeredSource_carriesItsNameAndKind_REQ_033_05() {
+        storedMatch("eu-test-server");
+        Source source = new Source();
+        source.setName("eu-test-server");
+        source.setDisplayName("Hy Sea's EU server");
+        source.setKind("custom_server");
+        when(sourceMapper.findByName("eu-test-server")).thenReturn(Optional.of(source));
+
+        MatchResponse response = matchService.getMatch(7L);
+
+        assertThat(response.source()).isEqualTo("eu-test-server");
+        assertThat(response.sourceDisplayName()).isEqualTo("Hy Sea's EU server");
+        assertThat(response.sourceKind()).isEqualTo("custom_server");
+    }
+
+    @Test
+    void getMatch_unregisteredSource_hasNoNameAndNoKind_REQ_033_05() {
+        storedMatch("nowhere");
+        when(sourceMapper.findByName("nowhere")).thenReturn(Optional.empty());
+
+        MatchResponse response = matchService.getMatch(7L);
+
+        assertThat(response.source()).isEqualTo("nowhere");
+        assertThat(response.sourceDisplayName()).isNull();
+        assertThat(response.sourceKind()).isNull();
     }
 
     @Test

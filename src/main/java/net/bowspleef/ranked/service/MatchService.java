@@ -24,6 +24,7 @@ import net.bowspleef.ranked.mapper.MatchMapper;
 import net.bowspleef.ranked.mapper.MatchPlayerStatMapper;
 import net.bowspleef.ranked.mapper.PlayerMapper;
 import net.bowspleef.ranked.mapper.RankedSeasonMapper;
+import net.bowspleef.ranked.mapper.SourceMapper;
 import net.bowspleef.ranked.mapper.TeamMapper;
 import net.bowspleef.ranked.mapper.TeamPlayerMapper;
 import net.bowspleef.ranked.model.GameType;
@@ -31,6 +32,7 @@ import net.bowspleef.ranked.model.Match;
 import net.bowspleef.ranked.model.MatchPlayerStat;
 import net.bowspleef.ranked.model.Player;
 import net.bowspleef.ranked.model.RankedSeason;
+import net.bowspleef.ranked.model.Source;
 import net.bowspleef.ranked.model.Team;
 import net.bowspleef.ranked.model.TeamPlayer;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class MatchService {
     private final ObjectMapper objectMapper;
     private final GameTypeMapper gameTypeMapper;
     private final RankedSeasonMapper rankedSeasonMapper;
+    private final SourceMapper sourceMapper;
     private final MatchWebhookClient matchWebhookClient;
 
     /**
@@ -293,12 +296,14 @@ public class MatchService {
         String displayName = gameTypeMapper.findByName(match.getGameType())
                 .map(GameType::getDisplayName)
                 .orElse(match.getGameType());
+        // spec 033: a source that is not registered is still a match, shown with no name and no kind
+        Optional<Source> source = sourceMapper.findByName(match.getSource());
 
         log.debug("Match fetched: id={}, gameType={}, teams={}", id, match.getGameType(), teams.size());
         Map<UUID, Map<String, Object>> stats = playerStats.isEmpty() ? null : playerStats;
-        return new MatchResponse(match.getId(), match.getGameType(), displayName,
-                match.getSource(), match.getPlayedAt(), teams, match.getRankedSeasonId(), stats,
-                readModifiers(match));
+        return new MatchResponse(match.getId(), match.getGameType(), displayName, match.getSource(),
+                source.map(Source::getDisplayName).orElse(null), source.map(Source::getKind).orElse(null),
+                match.getPlayedAt(), teams, match.getRankedSeasonId(), stats, readModifiers(match));
     }
 
     /** The modifiers sent with a match as the JSON that is stored; null when the client sent none. */

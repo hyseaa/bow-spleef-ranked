@@ -62,6 +62,20 @@ class MatchWebhookClientTest {
     }
 
     @Test
+    void theMatchResultCarriesTheNameAndKindOfItsSource_REQ_033_05() {
+        server.expect(requestTo(URL)).andExpect(method(POST))
+                .andExpect(jsonPath("$.source").value("eu-test-server"))
+                .andExpect(jsonPath("$.sourceDisplayName").value("Hy Sea's EU server"))
+                .andExpect(jsonPath("$.sourceKind").value("custom_server"))
+                .andRespond(withSuccess());
+
+        client(true).notifyMatchResult(new MatchWebhookPayload(new MatchResponse(1L, "gt", "GT", "eu-test-server",
+                "Hy Sea's EU server", "custom_server", null, List.of(), 1L, null, null), List.of()));
+
+        server.verify();
+    }
+
+    @Test
     void insideATransaction_isNotSentBeforeCommit_REQ_KI07() {
         TransactionSynchronizationManager.initSynchronization();
 

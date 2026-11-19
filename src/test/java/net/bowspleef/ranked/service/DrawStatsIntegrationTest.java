@@ -81,16 +81,17 @@ class DrawStatsIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void theWinsLeaderboardDoesNotCountDraws() {
+        // since spec 035 the board counts games won: a 2-2 is two games won by each side, a 0-0 one drawn game
         String gameType = gameType(false);
         UUID alice = UUID.randomUUID();
         UUID bob = UUID.randomUUID();
-        play(gameType, alice, 3, bob, 1);
-        play(gameType, alice, 2, bob, 2);
-        play(gameType, bob, 5, alice, 5);
+        play(gameType, alice, 1, bob, 0);
+        play(gameType, alice, 0, bob, 0);
+        play(gameType, bob, 0, alice, 0);
 
         List<WinsLeaderboardEntryResponse> board = playerService.getWinsLeaderboard(gameType, 0, 10).content();
 
-        assertThat(board).extracting(WinsLeaderboardEntryResponse::uuid, WinsLeaderboardEntryResponse::wins)
+        assertThat(board).extracting(WinsLeaderboardEntryResponse::uuid, WinsLeaderboardEntryResponse::gamesWon)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(alice, 1L));
     }
 

@@ -80,7 +80,8 @@ public class PlayerService {
         long total = eloMapper.countLeaderboard(rankedSeasonId);
         List<LeaderboardEntryResponse> content = eloMapper.findLeaderboard(rankedSeasonId, size, page * size)
                 .stream()
-                .map(row -> new LeaderboardEntryResponse(row.getUuid(), usernameCache.get(row.getUuid()), row.getElo(), row.getMatchesPlayed(), row.getWins(), row.getTitle()))
+                .map(row -> new LeaderboardEntryResponse(row.getUuid(), usernameCache.get(row.getUuid()), row.getElo(), row.getMatchesPlayed(), row.getWins(), row.getTitle(),
+                        row.getGamesPlayed(), row.getGamesWon()))
                 .toList();
         log.debug("Leaderboard fetched: seasonId={}, total={}, returned={}", rankedSeasonId, total, content.size());
         return PageResponse.of(content, page, size, total);
@@ -92,7 +93,7 @@ public class PlayerService {
         long total = leaderboardMapper.countLeaderboard(gameType);
         List<WinsLeaderboardEntryResponse> content = leaderboardMapper.findLeaderboard(gameType, size, page * size)
                 .stream()
-                .map(row -> new WinsLeaderboardEntryResponse(row.getUuid(), usernameCache.get(row.getUuid()), row.getWins()))
+                .map(row -> new WinsLeaderboardEntryResponse(row.getUuid(), usernameCache.get(row.getUuid()), row.getWins(), row.getGamesWon()))
                 .toList();
         log.debug("Wins leaderboard fetched: gameType={}, total={}, returned={}", gameType, total, content.size());
         return PageResponse.of(content, page, size, total);
@@ -109,7 +110,9 @@ public class PlayerService {
         List<PlayerGameTypeStatsResponse> gameTypes = playerStatsMapper.findNonRankedStats(uuid).stream()
                 .map(row -> new PlayerGameTypeStatsResponse(row.getGameType(), row.getGameTypeDisplayName(),
                         row.getMatchesPlayed(), row.getWins(),
-                        row.getMatchesPlayed() - row.getWins() - row.getDraws(), row.getDraws()))
+                        row.getMatchesPlayed() - row.getWins() - row.getDraws(), row.getDraws(),
+                        row.getGamesWon() + row.getGamesLost() + row.getGamesDrawn(),
+                        row.getGamesWon(), row.getGamesLost(), row.getGamesDrawn()))
                 .toList();
         PlayerStatsResponse response = new PlayerStatsResponse(uuid, playerStatsMapper.findActiveRankedStats(uuid), gameTypes);
         log.debug("Stats fetched for uuid={}: nonRankedGameTypes={}, rankedSeasons={}", uuid, gameTypes.size(), response.ranked().size());
@@ -134,7 +137,8 @@ public class PlayerService {
                     return new PlayerSeasonEloNotFoundException(uuid, seasonId);
                 });
         log.debug("Season ELO fetched: uuid={}, seasonId={}, elo={}", uuid, seasonId, row.getElo());
-        return new PlayerSeasonEloResponse(uuid, row.getSeasonId(), row.getSeasonName(), row.getGameType(), row.getElo(), row.getMatchesPlayed(), row.getTitle());
+        return new PlayerSeasonEloResponse(uuid, row.getSeasonId(), row.getSeasonName(), row.getGameType(), row.getElo(), row.getMatchesPlayed(),
+                row.getGamesPlayed(), row.getGamesWon(), row.getGamesLost(), row.getTitle());
     }
 
     @Transactional(readOnly = true)

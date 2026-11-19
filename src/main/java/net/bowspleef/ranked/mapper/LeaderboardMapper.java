@@ -10,15 +10,14 @@ import java.util.List;
 @Mapper
 public interface LeaderboardMapper {
 
-    @Select("SELECT p.uuid, COUNT(*) AS wins "
-            + "FROM player p "
-            + "JOIN team_player tp ON tp.player_uuid = p.uuid "
-            + "JOIN team t ON t.id = tp.team_id "
-            + "JOIN match m ON m.id = t.match_id "
-            + "WHERE t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) "
-            + "AND m.game_type = #{gameType} "
-            + "GROUP BY p.uuid "
-            + "ORDER BY wins DESC, p.uuid ASC "
+    /** Ranked by games won (spec 035): a best-of won 3-0 is three; every match of the game type, ranked or not. */
+    @Select("SELECT r.player_uuid AS uuid, SUM(r.games_won) AS games_won, "
+            + "COUNT(*) FILTER (WHERE r.result = 'WON') AS wins "
+            + "FROM player_match_result r "
+            + "WHERE r.game_type = #{gameType} "
+            + "GROUP BY r.player_uuid "
+            + "HAVING SUM(r.games_won) > 0 "
+            + "ORDER BY games_won DESC, wins DESC, r.player_uuid ASC "
             + "LIMIT #{size} OFFSET #{offset}")
     List<WinsLeaderboardRow> findLeaderboard(
             @Param("gameType") String gameType,
@@ -26,14 +25,10 @@ public interface LeaderboardMapper {
             @Param("offset") int offset);
 
     @Select("SELECT COUNT(*) FROM ("
-            + "SELECT p.uuid "
-            + "FROM player p "
-            + "JOIN team_player tp ON tp.player_uuid = p.uuid "
-            + "JOIN team t ON t.id = tp.team_id "
-            + "JOIN match m ON m.id = t.match_id "
-            + "WHERE t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) "
-            + "AND m.game_type = #{gameType} "
-            + "GROUP BY p.uuid"
+            + "SELECT r.player_uuid FROM player_match_result r "
+            + "WHERE r.game_type = #{gameType} "
+            + "GROUP BY r.player_uuid "
+            + "HAVING SUM(r.games_won) > 0"
             + ") AS sub")
     long countLeaderboard(@Param("gameType") String gameType);
 }

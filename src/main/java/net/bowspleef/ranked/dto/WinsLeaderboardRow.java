@@ -8,4 +8,5 @@ import java.util.UUID;
 public class WinsLeaderboardRow {
     private UUID uuid;
     private long wins;
+    private long gamesWon;
 }

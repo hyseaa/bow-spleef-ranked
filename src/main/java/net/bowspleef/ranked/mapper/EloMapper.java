@@ -75,17 +75,18 @@ public interface EloMapper {
     @Select("SELECT COUNT(*) FROM elo_history WHERE player_uuid = #{uuid} AND ranked_season_id = #{rankedSeasonId}")
     long countHistoryByPlayerAndSeason(@Param("uuid") UUID uuid, @Param("rankedSeasonId") Long rankedSeasonId);
 
-    @Select("SELECT p.uuid, pse.elo, pse.matches_played, "
-            + "COUNT(CASE WHEN m.id IS NOT NULL AND t.score > ALL (SELECT t2.score FROM team t2 WHERE t2.match_id = t.match_id AND t2.id <> t.id) THEN 1 END) AS wins, "
+    /** Matches won, games played and games won in the season, from the view of spec 035 (V35). */
+    @Select("SELECT pse.player_uuid AS uuid, pse.elo, pse.matches_played, "
+            + "COUNT(r.match_id) FILTER (WHERE r.result = 'WON') AS wins, "
+            + "COALESCE(SUM(r.games_won + r.games_lost + r.games_drawn), 0) AS games_played, "
+            + "COALESCE(SUM(r.games_won), 0) AS games_won, "
             + "pse.rank_title AS title "
             + "FROM player_season_elo pse "
-            + "JOIN player p ON p.uuid = pse.player_uuid "
-            + "LEFT JOIN team_player tp ON tp.player_uuid = p.uuid "
-            + "LEFT JOIN team t ON t.id = tp.team_id "
-            + "LEFT JOIN match m ON m.id = t.match_id AND m.ranked_season_id = #{rankedSeasonId} "
+            + "LEFT JOIN player_match_result r ON r.player_uuid = pse.player_uuid "
+            + "AND r.ranked_season_id = pse.ranked_season_id "
             + "WHERE pse.ranked_season_id = #{rankedSeasonId} "
-            + "GROUP BY p.uuid, pse.elo, pse.matches_played, pse.rank_title "
-            + "ORDER BY pse.elo DESC, p.uuid ASC "
+            + "GROUP BY pse.player_uuid, pse.elo, pse.matches_played, pse.rank_title "
+            + "ORDER BY pse.elo DESC, pse.player_uuid ASC "
             + "LIMIT #{size} OFFSET #{offset}")
     List<LeaderboardRow> findLeaderboard(
             @Param("rankedSeasonId") Long rankedSeasonId,

@@ -10,5 +10,7 @@ public class LeaderboardRow {
     private int elo;
     private int matchesPlayed;
     private long wins;
+    private long gamesPlayed;
+    private long gamesWon;
     private String title;
 }

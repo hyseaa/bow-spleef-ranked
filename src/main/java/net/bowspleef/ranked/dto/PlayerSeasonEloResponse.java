@@ -9,5 +9,8 @@ public record PlayerSeasonEloResponse(
         String gameType,
         int elo,
         int matchesPlayed,
+        int gamesPlayed,
+        int gamesWon,
+        int gamesLost,
         String title
 ) {}

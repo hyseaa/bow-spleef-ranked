@@ -69,7 +69,7 @@ class PlayerControllerTest {
     void getLeaderboard_returnsPage() throws Exception {
         UUID uuid = UUID.randomUUID();
         PageResponse<LeaderboardEntryResponse> page = PageResponse.of(
-                List.of(new LeaderboardEntryResponse(uuid, "Notch", 1200, 10, 5L, "Platinum II")), 0, 20, 1);
+                List.of(new LeaderboardEntryResponse(uuid, "Notch", 1200, 10, 5L, "Platinum II", 25L, 14L)), 0, 20, 1);
         when(playerService.getLeaderboard(1L, 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/players/leaderboard").param("seasonId", "1"))
@@ -89,7 +89,7 @@ class PlayerControllerTest {
     void stats_listTheNonRankedGameTypesAndNothingElse_REQ_011_03() throws Exception {
         UUID uuid = UUID.randomUUID();
         when(playerService.getPlayerStats(uuid)).thenReturn(new net.bowspleef.ranked.dto.PlayerStatsResponse(uuid, List.of(),
-                List.of(new net.bowspleef.ranked.dto.PlayerGameTypeStatsResponse("bowspleef_classic", "Bow Spleef Classic", 6, 3, 2, 1))));
+                List.of(new net.bowspleef.ranked.dto.PlayerGameTypeStatsResponse("bowspleef_classic", "Bow Spleef Classic", 6, 3, 2, 1, 6, 3, 2, 1))));
 
         mockMvc.perform(get("/api/v1/players/" + uuid + "/stats"))
                 .andExpect(status().isOk())

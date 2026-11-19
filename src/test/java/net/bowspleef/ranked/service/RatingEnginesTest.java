@@ -20,11 +20,13 @@ class RatingEnginesTest {
     void returnsTheEngineOfEachAlgorithm() {
         RatingEngine classic = engine(RatingAlgorithm.CLASSIC_ELO);
         RatingEngine openSkill = engine(RatingAlgorithm.OPENSKILL);
+        RatingEngine byGames = engine(RatingAlgorithm.OPENSKILL_GAMES);
 
-        RatingEngines engines = new RatingEngines(List.of(openSkill, classic));
+        RatingEngines engines = new RatingEngines(List.of(openSkill, classic, byGames));
 
         assertThat(engines.get(RatingAlgorithm.CLASSIC_ELO)).isSameAs(classic);
         assertThat(engines.get(RatingAlgorithm.OPENSKILL)).isSameAs(openSkill);
+        assertThat(engines.get(RatingAlgorithm.OPENSKILL_GAMES)).isSameAs(byGames);
     }
 
     @Test
@@ -37,7 +39,8 @@ class RatingEnginesTest {
     @Test
     void duplicateEngine_failsAtStartup() {
         assertThatThrownBy(() -> new RatingEngines(List.of(
-                engine(RatingAlgorithm.OPENSKILL), engine(RatingAlgorithm.CLASSIC_ELO), engine(RatingAlgorithm.OPENSKILL))))
+                engine(RatingAlgorithm.OPENSKILL), engine(RatingAlgorithm.CLASSIC_ELO),
+                engine(RatingAlgorithm.OPENSKILL_GAMES), engine(RatingAlgorithm.OPENSKILL))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("OPENSKILL");
     }

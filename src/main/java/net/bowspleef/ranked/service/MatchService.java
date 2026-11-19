@@ -18,6 +18,7 @@ import net.bowspleef.ranked.exception.IdempotencyKeyReusedException;
 import net.bowspleef.ranked.exception.InvalidTeamSizeException;
 import net.bowspleef.ranked.exception.MatchNotFoundException;
 import net.bowspleef.ranked.exception.NoActiveRankedSeasonException;
+import net.bowspleef.ranked.exception.ScoreOutOfRangeException;
 import net.bowspleef.ranked.mapper.EloMapper;
 import net.bowspleef.ranked.mapper.GameTypeMapper;
 import net.bowspleef.ranked.mapper.MatchMapper;
@@ -56,6 +57,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MatchService {
+
+    /** The highest score of a team in a ranked match: the games won in a best of 7 (spec 034, ADR-0034). */
+    public static final int MAX_RANKED_SCORE = 4;
 
     private final MatchMapper matchMapper;
     private final TeamMapper teamMapper;
@@ -227,12 +231,13 @@ public class MatchService {
     }
 
     /**
-     * Ranked game types require exactly teamSize players per team; duplicate players
-     * (within or across teams) are rejected for every match.
+     * Ranked game types require exactly teamSize players per team and scores of at most {@link #MAX_RANKED_SCORE}
+     * (spec 034); duplicate players (within or across teams) are rejected for every match.
      */
     private void validateTeams(CreateMatchRequest request, GameType gameType) {
         Set<UUID> seen = new HashSet<>();
         for (TeamRequest teamReq : request.teams()) {
+            requireRankedScore(gameType, teamReq.score());
             if (gameType.isRanked() && teamReq.playerUuids().size() != gameType.getTeamSize()) {
                 log.warn("Match creation failed: invalid team size for gameType={}: expected={}, actual={}",
                         gameType.getName(), gameType.getTeamSize(), teamReq.playerUuids().size());
@@ -244,6 +249,14 @@ public class MatchService {
                     throw new DuplicatePlayerInMatchException(uuid);
                 }
             }
+        }
+    }
+
+    /** Refuses a score above {@link #MAX_RANKED_SCORE} for a ranked game type (spec 034). */
+    public static void requireRankedScore(GameType gameType, Integer score) {
+        if (gameType.isRanked() && score != null && score > MAX_RANKED_SCORE) {
+            log.warn("Score refused for ranked gameType={}: {}", gameType.getName(), score);
+            throw new ScoreOutOfRangeException(gameType.getName(), score, MAX_RANKED_SCORE);
         }
     }
 

@@ -39,7 +39,7 @@ public class RankedSeasonService {
         season.setStartsAt(OffsetDateTime.now());
         season.setGameType(request.gameType());
         season.setActive(true);
-        season.setRatingAlgorithm(RatingAlgorithm.OPENSKILL);
+        season.setRatingAlgorithm(RatingAlgorithm.OPENSKILL_GAMES);
         rankedSeasonMapper.insert(season);
         log.info("Ranked season created: id={}, name={}, gameType={}", season.getId(), season.getName(), season.getGameType());
         return toResponse(season);

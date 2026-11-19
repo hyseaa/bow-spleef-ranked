@@ -47,8 +47,8 @@ class RankedSeasonServiceTest {
 
         ArgumentCaptor<RankedSeason> inserted = ArgumentCaptor.forClass(RankedSeason.class);
         verify(rankedSeasonMapper).insert(inserted.capture());
-        assertThat(inserted.getValue().getRatingAlgorithm()).isEqualTo(RatingAlgorithm.OPENSKILL);
-        assertThat(response.ratingAlgorithm()).isEqualTo(RatingAlgorithm.OPENSKILL);
+        assertThat(inserted.getValue().getRatingAlgorithm()).isEqualTo(RatingAlgorithm.OPENSKILL_GAMES);
+        assertThat(response.ratingAlgorithm()).isEqualTo(RatingAlgorithm.OPENSKILL_GAMES);
     }
 
     /** REQ-001-04, REQ-001-10: deactivating keeps the season's algorithm, and responses expose it. */

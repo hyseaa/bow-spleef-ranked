@@ -70,15 +70,30 @@ public class OpenSkillRatingService implements RatingEngine {
             return result;
         }
 
-        if (props.tau() > 0) {
-            rateable = rateable.stream()
-                    .map(t -> new TeamRatingContext(t.teamId(), t.score(), t.players().stream()
-                            .map(p -> new PlayerRating(p.playerUuid(), p.mu(),
-                                    Math.sqrt(p.sigma() * p.sigma() + props.tau() * props.tau())))
-                            .toList()))
-                    .toList();
-        }
+        rateOnce(withTau(rateable), result);
+        // Players from empty teams keep their rating unchanged
+        teams.forEach(t -> t.players().forEach(p -> result.putIfAbsent(p.playerUuid(), p)));
+        return result;
+    }
 
+    /** The teams with every sigma inflated by {@code tau} (unchanged when {@code tau} is 0). */
+    List<TeamRatingContext> withTau(List<TeamRatingContext> teams) {
+        if (props.tau() <= 0) {
+            return teams;
+        }
+        return teams.stream()
+                .map(t -> new TeamRatingContext(t.teamId(), t.score(), t.players().stream()
+                        .map(p -> new PlayerRating(p.playerUuid(), p.mu(),
+                                Math.sqrt(p.sigma() * p.sigma() + props.tau() * props.tau())))
+                        .toList()))
+                .toList();
+    }
+
+    /**
+     * One Weng-Lin update of at least two non-empty teams, with no {@code tau}; the new ratings are put in
+     * {@code result}, which is returned.
+     */
+    Map<UUID, PlayerRating> rateOnce(List<TeamRatingContext> rateable, Map<UUID, PlayerRating> result) {
         int k = rateable.size();
         int[] rank = new int[k];
         double[] teamMu = new double[k];
@@ -143,8 +158,6 @@ public class OpenSkillRatingService implements RatingEngine {
             }
         }
 
-        // Players from empty teams keep their rating unchanged
-        teams.forEach(t -> t.players().forEach(p -> result.putIfAbsent(p.playerUuid(), p)));
         return result;
     }
 

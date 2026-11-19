@@ -95,7 +95,7 @@ class RatingAlgorithmMigrationIntegrationTest {
             st.execute("INSERT INTO ranked_season (name, game_type, active) VALUES ('new', 'gt', FALSE)");
             try (ResultSet rs = st.executeQuery("SELECT rating_algorithm FROM ranked_season WHERE name = 'new'")) {
                 rs.next();
-                assertThat(rs.getString(1)).isEqualTo("OPENSKILL");
+                assertThat(rs.getString(1)).isEqualTo("OPENSKILL_GAMES"); // the default since V34 (spec 034)
             }
             assertThatThrownBy(() -> st.execute("UPDATE ranked_season SET rating_algorithm = 'TRUESKILL' WHERE name = 'new'"))
                     .isInstanceOf(SQLException.class);

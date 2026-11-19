@@ -1,5 +1,7 @@
 package net.bowspleef.ranked.service;
 
+import net.bowspleef.ranked.dto.ReportDuelScoresRequest;
+import net.bowspleef.ranked.exception.ScoreOutOfRangeException;
 import net.bowspleef.ranked.client.MatchWebhookClient;
 import net.bowspleef.ranked.dto.CreateDuelChallengeRequest;
 import net.bowspleef.ranked.dto.CreateMatchRequest;
@@ -43,6 +45,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
@@ -661,5 +664,34 @@ class DuelChallengeServiceTest {
                 .isInstanceOf(DuelAlreadyOpenException.class);
         verify(duelChallengeMapper, never()).insert(any());
         verifyNoInteractions(participantMapper);
+    }
+
+    // ---- Spec 034: the cap of a ranked score in a report --------------------------------------------
+
+    @Test
+    void reportScores_rankedAboveFour_isRefusedAndNothingStored_REQ_034_07() {
+        duel("ACTIVE", null);
+        stubPlayer("d-challenger", CHALLENGER);
+        when(gameTypeMapper.findByName("DUEL_1V1")).thenReturn(Optional.of(gameType("DUEL_1V1", 1)));
+
+        assertThatThrownBy(() -> duelChallengeService.reportScores(7L,
+                new ReportDuelScoresRequest("d-challenger", 5, 0)))
+                .isInstanceOf(ScoreOutOfRangeException.class);
+        verify(duelChallengeMapper, never()).setReportedScores(any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void reportScores_notRankedAboveFour_isStored_REQ_034_07() {
+        duel("ACTIVE", null);
+        stubPlayer("d-challenger", CHALLENGER);
+        GameType notRanked = gameType("DUEL_1V1", 1);
+        notRanked.setRanked(false);
+        when(gameTypeMapper.findByName("DUEL_1V1")).thenReturn(Optional.of(notRanked));
+        when(duelChallengeMapper.setReportedScores(7L, CHALLENGER, 5, 0)).thenReturn(1);
+
+        DuelChallengeResponse response = duelChallengeService.reportScores(7L,
+                new ReportDuelScoresRequest("d-challenger", 5, 0));
+
+        assertThat(response.status()).isEqualTo("REPORTED");
     }
 }

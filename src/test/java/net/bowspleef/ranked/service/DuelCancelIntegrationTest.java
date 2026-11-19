@@ -103,7 +103,7 @@ class DuelCancelIntegrationTest extends AbstractIntegrationTest {
         long id = duelChallengeService.create(new CreateDuelChallengeRequest(challengerId, challengedId, gameTypeName)).id();
         duelChallengeService.accept(id, challengedId);
         if (reported) {
-            duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 5, 3));
+            duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 4, 3));
         }
         return id;
     }

@@ -54,7 +54,9 @@ class ClassicSeasonReplayIntegrationTest extends AbstractIntegrationTest {
     private JdbcTemplate jdbc;
 
     static Stream<Arguments> seasons() {
-        return Stream.of(RatingAlgorithm.values()).flatMap(algorithm ->
+        // The golden data are those of the original implementations; OPENSKILL_GAMES is covered by
+        // RatingByGamesIntegrationTest (spec 034).
+        return Stream.of(RatingAlgorithm.CLASSIC_ELO, RatingAlgorithm.OPENSKILL).flatMap(algorithm ->
                 GoldenRatings.sequenceNames().stream().map(sequence -> Arguments.of(algorithm, sequence)));
     }
 

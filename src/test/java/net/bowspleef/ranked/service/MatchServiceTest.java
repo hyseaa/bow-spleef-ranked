@@ -1,5 +1,6 @@
 package net.bowspleef.ranked.service;
 
+import net.bowspleef.ranked.exception.ScoreOutOfRangeException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.bowspleef.ranked.client.MatchWebhookClient;
 import net.bowspleef.ranked.dto.CreateMatchRequest;
@@ -673,5 +674,46 @@ class MatchServiceTest {
         assertThat(payload.getValue().getPlayerRanks()).extracting(PlayerRankEntry::discordId)
                 .as("the match's players and the bystander whose title changed, not the one whose title did not")
                 .containsExactlyInAnyOrder("d-a", "d-b", "d-c");
+    }
+
+    // ---- Spec 034: the cap of a ranked score --------------------------------------------------------
+
+    private GameType oneVsOne(boolean ranked) {
+        GameType gameType = new GameType();
+        gameType.setName("DUEL_1V1");
+        gameType.setDisplayName("Duel 1v1");
+        gameType.setRanked(ranked);
+        gameType.setTeamSize(1);
+        when(gameTypeMapper.findByName("DUEL_1V1")).thenReturn(Optional.of(gameType));
+        return gameType;
+    }
+
+    @Test
+    void createMatch_ranked_scoreAboveFour_isRefused_REQ_034_07() {
+        oneVsOne(true);
+        CreateMatchRequest request = new CreateMatchRequest("DUEL_1V1", "discord_bot",
+                List.of(new TeamRequest(5, List.of(UUID.randomUUID())),
+                        new TeamRequest(0, List.of(UUID.randomUUID()))), null);
+
+        assertThatThrownBy(() -> matchService.createMatch(request))
+                .isInstanceOf(ScoreOutOfRangeException.class)
+                .hasMessageContaining("at most 4");
+        verify(matchMapper, never()).insert(any(Match.class));
+    }
+
+    @Test
+    void requireRankedScore_acceptsFourAndScoresOfAMatchThatIsNotRanked_REQ_034_07() {
+        GameType ranked = new GameType();
+        ranked.setName("R");
+        ranked.setRanked(true);
+        GameType notRanked = new GameType();
+        notRanked.setName("N");
+        notRanked.setRanked(false);
+
+        MatchService.requireRankedScore(ranked, 4);
+        MatchService.requireRankedScore(ranked, 0);
+        MatchService.requireRankedScore(notRanked, 5);
+        assertThatThrownBy(() -> MatchService.requireRankedScore(ranked, 5))
+                .isInstanceOf(ScoreOutOfRangeException.class);
     }
 }

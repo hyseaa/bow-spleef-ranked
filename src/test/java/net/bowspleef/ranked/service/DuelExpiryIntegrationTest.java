@@ -71,7 +71,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
         gameTypeMapper.insert(gameType);
     }
 
-    /** Two new verified players and a duel between them, accepted, and reported 5-3 when asked. */
+    /** Two new verified players and a duel between them, accepted, and reported 4-3 when asked. */
     private long duel(boolean reported) {
         challengerId = discordId();
         challengedId = discordId();
@@ -83,7 +83,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
         long id = duelChallengeService.create(new CreateDuelChallengeRequest(challengerId, challengedId, gameTypeName)).id();
         duelChallengeService.accept(id, challengedId);
         if (reported) {
-            duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 5, 3));
+            duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 4, 3));
         }
         return id;
     }
@@ -133,7 +133,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
         long id = duel(false);
         setBackActiveSince(id, 10);
 
-        duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 5, 3));
+        duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 4, 3));
 
         assertThat(activeSinceIsRecent(id)).isFalse();
     }
@@ -220,7 +220,7 @@ class DuelExpiryIntegrationTest extends AbstractIntegrationTest {
                 Callable<Boolean> report = () -> {
                     go.await();
                     try {
-                        duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 5, 3));
+                        duelChallengeService.reportScores(id, new ReportDuelScoresRequest(challengerId, 4, 3));
                         return true;
                     } catch (DuelChallengeNotPendingException e) {
                         return false;

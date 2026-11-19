@@ -108,6 +108,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_TEAM_SIZE", ex.getMessage());
     }
 
+    @ExceptionHandler(ScoreOutOfRangeException.class)
+    public ProblemDetail handleScoreOutOfRange(ScoreOutOfRangeException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", ex.getMessage());
+    }
+
     @ExceptionHandler(QueueTeamGameTypeException.class)
     public ProblemDetail handleQueueTeamGameType(QueueTeamGameTypeException ex) {
         return problem(HttpStatus.BAD_REQUEST, "QUEUE_TEAM_GAME_TYPE_NOT_SUPPORTED", ex.getMessage());

@@ -1,5 +1,6 @@
 package net.bowspleef.ranked.controller;
 
+import net.bowspleef.ranked.exception.ScoreOutOfRangeException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.bowspleef.ranked.dto.CreateMatchRequest;
 import net.bowspleef.ranked.dto.MatchListResponse;
@@ -320,5 +321,26 @@ class MatchControllerTest {
         when(matchService.getMatchesByGameType("BEDWARS", 0, 100)).thenReturn(MatchListResponse.of("BEDWARS", "Bed Wars", List.of(), 0, 100, 0L));
 
         mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("size", "100")).andExpect(status().isOk());
+    }
+
+    // ---- Spec 034, KI-82: scores ---------------------------------------------------------------------
+
+    @Test
+    void createMatch_aNegativeScore_returns400_REQ_034_14() throws Exception {
+        String body = "{\"gameType\":\"BEDWARS\",\"source\":\"hysea-server\",\"teams\":["
+                + "{\"score\":-1,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]},"
+                + "{\"score\":0,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]}]}";
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void createMatch_aRankedScoreAboveTheCap_returns400_REQ_034_07() throws Exception {
+        when(matchService.recordMatch(any(), any())).thenThrow(new ScoreOutOfRangeException("DUEL_1V1", 5, 4));
+        mockMvc.perform(post("/api/v1/matches").contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithModifiers(null)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 }

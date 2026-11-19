@@ -67,7 +67,7 @@ class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
                 new CreateDuelChallengeRequest(CHALLENGER_DISCORD_ID, CHALLENGED_DISCORD_ID, gameTypeName));
         duelChallengeService.accept(challenge.id(), CHALLENGED_DISCORD_ID);
         duelChallengeService.reportScores(challenge.id(),
-                new ReportDuelScoresRequest(CHALLENGER_DISCORD_ID, 5, 3));
+                new ReportDuelScoresRequest(CHALLENGER_DISCORD_ID, 4, 3));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);

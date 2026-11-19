@@ -336,6 +336,10 @@ public class DuelChallengeService {
         DuelChallenge challenge = findOrThrow(id);
         UUID reporterUuid = resolveDiscordId(request.reporterDiscordId());
         requireParticipant(challenge, reporterUuid);
+        GameType gameType = gameTypeMapper.findByName(challenge.getGameType())
+                .orElseThrow(() -> new GameTypeNotFoundException(challenge.getGameType()));
+        MatchService.requireRankedScore(gameType, request.scoreChallenger());
+        MatchService.requireRankedScore(gameType, request.scoreChallenged());
 
         int updated = duelChallengeMapper.setReportedScores(
                 id, reporterUuid, request.scoreChallenger(), request.scoreChallenged());

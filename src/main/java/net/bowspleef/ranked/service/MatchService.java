@@ -196,7 +196,7 @@ public class MatchService {
         Set<UUID> reported = new LinkedHashSet<>(teamIdToPlayers.values().stream().flatMap(List::stream).toList());
         reported.addAll(titleChangedUuids);
         List<PlayerRankEntry> playerRanks = buildPlayerRanks(new ArrayList<>(reported), match.getRankedSeasonId());
-        matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks));
+        matchWebhookClient.notifyMatchResult(new MatchWebhookPayload(response, playerRanks, match.getIdempotencyKey()));
         return new MatchRecording(response, true);
     }
 

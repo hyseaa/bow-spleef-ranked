@@ -471,6 +471,10 @@ class MatchServiceTest {
         order.verify(matchMapper).findByIdempotencyKey(SOURCE, KEY);
         order.verify(matchMapper).insert(inserted.capture());
         assertThat(inserted.getValue().getIdempotencyKey()).isEqualTo(KEY);
+        // REQ-036-12: the webhook carries the key, the id of the game's live
+        ArgumentCaptor<MatchWebhookPayload> payload = ArgumentCaptor.forClass(MatchWebhookPayload.class);
+        verify(matchWebhookClient).notifyMatchResult(payload.capture());
+        assertThat(payload.getValue().getIdempotencyKey()).isEqualTo(KEY);
     }
 
     @Test

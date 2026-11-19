@@ -76,6 +76,19 @@ class MatchWebhookClientTest {
     }
 
     @Test
+    void theMatchResultCarriesTheIdempotencyKeyOfItsMatch_orNull_REQ_036_12() {
+        server.expect(requestTo(URL)).andExpect(jsonPath("$.idempotencyKey").value("game-key-1"))
+                .andExpect(jsonPath("$.id").value(1)).andRespond(withSuccess());
+        server.expect(requestTo(URL)).andExpect(jsonPath("$.idempotencyKey").doesNotExist()).andRespond(withSuccess());
+
+        client(true).notifyMatchResult(new MatchWebhookPayload(
+                new MatchResponse(1L, "gt", "GT", "test", null, List.of(), 1L, null), List.of(), "game-key-1"));
+        client(true).notifyMatchResult(match());
+
+        server.verify();
+    }
+
+    @Test
     void insideATransaction_isNotSentBeforeCommit_REQ_KI07() {
         TransactionSynchronizationManager.initSynchronization();
 

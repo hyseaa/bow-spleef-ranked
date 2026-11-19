@@ -67,9 +67,11 @@ public class MatchController {
     public MatchListResponse getMatchesByGameType(
             @RequestParam @NotNull String gameType,
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        log.info("Call to API: GET /api/v1/matches with parameters: gameType={}, page={}, size={}", gameType, page, size);
-        MatchListResponse response = matchService.getMatchesByGameType(gameType, page, size);
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "false") boolean includePrivate) {
+        log.info("Call to API: GET /api/v1/matches with parameters: gameType={}, page={}, size={}, includePrivate={}",
+                gameType, page, size, includePrivate);
+        MatchListResponse response = matchService.getMatchesByGameType(gameType, page, size, includePrivate);
         log.info("Call to API: GET /api/v1/matches completed");
         return response;
     }

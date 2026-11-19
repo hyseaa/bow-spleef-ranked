@@ -13,6 +13,7 @@ import net.bowspleef.ranked.dto.TeamRequest;
 import net.bowspleef.ranked.exception.DuplicatePlayerInMatchException;
 import net.bowspleef.ranked.exception.GameTypeNotFoundException;
 import net.bowspleef.ranked.exception.IdempotencyKeyReusedException;
+import net.bowspleef.ranked.exception.PrivateRankedMatchException;
 import net.bowspleef.ranked.exception.InvalidTeamSizeException;
 import net.bowspleef.ranked.exception.MatchNotFoundException;
 import net.bowspleef.ranked.mapper.EloMapper;
@@ -336,8 +337,8 @@ class MatchServiceTest {
         match.setGameType("BEDWARS");
         match.setSource("DISCORD_BOT");
         match.setPlayedAt(OffsetDateTime.now());
-        when(matchMapper.countByGameType("BEDWARS")).thenReturn(1L);
-        when(matchMapper.findByGameType("BEDWARS", 20, 0)).thenReturn(List.of(match));
+        when(matchMapper.countByGameType("BEDWARS", false)).thenReturn(1L);
+        when(matchMapper.findByGameType("BEDWARS", false, 20, 0)).thenReturn(List.of(match));
         when(matchMapper.findById(1L)).thenReturn(Optional.of(match));
         when(teamMapper.findByMatchId(1L)).thenReturn(List.of());
 
@@ -719,5 +720,47 @@ class MatchServiceTest {
         MatchService.requireRankedScore(notRanked, 5);
         assertThatThrownBy(() -> MatchService.requireRankedScore(ranked, 5))
                 .isInstanceOf(ScoreOutOfRangeException.class);
+    }
+
+    // ---- spec 038: private matches (ADR-0036)
+
+    @Test
+    void recordMatch_privateRankedMatch_isRefused_REQ_038_13() {
+        GameType ranked = nonRanked();
+        ranked.setRanked(true);
+        ranked.setTeamSize(1);
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(ranked));
+
+        assertThatThrownBy(() -> matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(1, List.of(UUID.randomUUID())), new TeamRequest(0, List.of(UUID.randomUUID()))),
+                null, null, true), null))
+                .isInstanceOf(PrivateRankedMatchException.class);
+        assertNothingWritten();
+    }
+
+    @Test
+    void recordMatch_privateMatch_isStoredPrivate_REQ_038_12() {
+        when(gameTypeMapper.findByName("BEDWARS")).thenReturn(Optional.of(nonRanked()));
+        newMatchWithId(3L);
+
+        matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(1, List.of(UUID.randomUUID())), new TeamRequest(0, List.of(UUID.randomUUID(), UUID.randomUUID()))),
+                null, null, true), null);
+
+        ArgumentCaptor<Match> inserted = ArgumentCaptor.forClass(Match.class);
+        verify(matchMapper).insert(inserted.capture());
+        assertThat(inserted.getValue().isPrivateMatch()).isTrue();
+    }
+
+    @Test
+    void recordMatch_sameKeyButPrivate_isRefused_REQ_038_13() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        storedMatch("BEDWARS", a, b);
+
+        assertThatThrownBy(() -> matchService.recordMatch(new CreateMatchRequest("BEDWARS", SOURCE,
+                List.of(new TeamRequest(3, List.of(a)), new TeamRequest(1, List.of(b))), null, null, true), KEY))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        assertNothingWritten();
     }
 }

@@ -93,7 +93,7 @@ class MatchControllerTest {
     void getMatchesByGameType_returns200() throws Exception {
         MatchResponse match = new MatchResponse(1L, "BEDWARS", "Bed Wars", "DISCORD_BOT", OffsetDateTime.now(), List.of(), null, null);
         MatchListResponse response = MatchListResponse.of("BEDWARS", "Bed Wars", List.of(match), 0, 20, 1L);
-        when(matchService.getMatchesByGameType("BEDWARS", 0, 20)).thenReturn(response);
+        when(matchService.getMatchesByGameType("BEDWARS", 0, 20, false)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS"))
                 .andExpect(status().isOk())
@@ -111,7 +111,7 @@ class MatchControllerTest {
 
     @Test
     void getMatchesByGameType_unknownGameType_returns404() throws Exception {
-        when(matchService.getMatchesByGameType("UNKNOWN", 0, 20)).thenThrow(new GameTypeNotFoundException("UNKNOWN"));
+        when(matchService.getMatchesByGameType("UNKNOWN", 0, 20, false)).thenThrow(new GameTypeNotFoundException("UNKNOWN"));
 
         mockMvc.perform(get("/api/v1/matches").param("gameType", "UNKNOWN"))
                 .andExpect(status().isNotFound());
@@ -236,6 +236,33 @@ class MatchControllerTest {
                 .andExpect(jsonPath("$.modifiers.perks").value(20));
     }
 
+    @Test
+    void getMatch_saysWhetherItIsPrivate_REQ_038_13() throws Exception {
+        MatchResponse privateMatch = new MatchResponse(6L, "BEDWARS", "Bed Wars", "hysea-server", null, null,
+                OffsetDateTime.now(), List.of(), null, null, null, true);
+        when(matchService.getMatch(6L)).thenReturn(privateMatch);
+        when(matchService.getMatch(5L)).thenReturn(stored());
+
+        mockMvc.perform(get("/api/v1/matches/6")).andExpect(jsonPath("$.private").value(true));
+        mockMvc.perform(get("/api/v1/matches/5")).andExpect(jsonPath("$.private").value(false));
+    }
+
+    @Test
+    void createMatch_readsThePrivateFlag_REQ_038_12() throws Exception {
+        when(matchService.recordMatch(any(), eq("game-p"))).thenReturn(new MatchRecording(stored(), true));
+        String body = "{\"gameType\":\"BEDWARS\",\"source\":\"hysea-server\",\"private\":true,\"teams\":["
+                + "{\"score\":1,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]},"
+                + "{\"score\":0,\"playerUuids\":[\"" + UUID.randomUUID() + "\"]}]}";
+
+        mockMvc.perform(post("/api/v1/matches").header("Idempotency-Key", "game-p")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+
+        org.mockito.ArgumentCaptor<CreateMatchRequest> sent = org.mockito.ArgumentCaptor.forClass(CreateMatchRequest.class);
+        org.mockito.Mockito.verify(matchService).recordMatch(sent.capture(), eq("game-p"));
+        org.assertj.core.api.Assertions.assertThat(sent.getValue().isPrivate()).isTrue();
+    }
+
     private String body() throws Exception {
         return objectMapper.writeValueAsString(new CreateMatchRequest("BEDWARS", "hysea-server",
                 List.of(new TeamRequest(3, List.of(UUID.randomUUID())),
@@ -318,7 +345,7 @@ class MatchControllerTest {
 
     @Test
     void getMatchesByGameType_maximumSize_isAccepted() throws Exception {
-        when(matchService.getMatchesByGameType("BEDWARS", 0, 100)).thenReturn(MatchListResponse.of("BEDWARS", "Bed Wars", List.of(), 0, 100, 0L));
+        when(matchService.getMatchesByGameType("BEDWARS", 0, 100, false)).thenReturn(MatchListResponse.of("BEDWARS", "Bed Wars", List.of(), 0, 100, 0L));
 
         mockMvc.perform(get("/api/v1/matches").param("gameType", "BEDWARS").param("size", "100")).andExpect(status().isOk());
     }

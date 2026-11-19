@@ -100,6 +100,6 @@ class DuelChallengeConcurrencyIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(successCount.get()).isEqualTo(1);
         assertThat(conflictCount.get()).isEqualTo(1);
-        assertThat(matchMapper.countByGameType(gameTypeName)).isEqualTo(1);
+        assertThat(matchMapper.countByGameType(gameTypeName, true)).isEqualTo(1);
     }
 }

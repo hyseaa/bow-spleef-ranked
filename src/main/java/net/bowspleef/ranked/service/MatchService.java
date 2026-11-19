@@ -1,5 +1,6 @@
 package net.bowspleef.ranked.service;
 
+import net.bowspleef.ranked.exception.PrivateRankedMatchException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.bowspleef.ranked.client.MatchWebhookClient;
@@ -116,6 +117,11 @@ public class MatchService {
                 });
 
         validateTeams(request, gameType);
+        if (request.isPrivate() && gameType.isRanked()) {
+            // spec 038, ADR-0036: a private game is never rated
+            log.warn("Match creation failed: private match of the ranked gameType={}", gameType.getName());
+            throw new PrivateRankedMatchException(gameType.getName());
+        }
 
         // KI-28: lock the season before anything else, so that the matches of a season are rated one at
         // a time, in the order of their played_at.
@@ -143,6 +149,7 @@ public class MatchService {
         match.setSource(request.source());
         match.setIdempotencyKey(idempotencyKey);
         match.setModifiers(modifiersJson(request.modifiers()));
+        match.setPrivateMatch(request.isPrivate());
         matchMapper.insert(match);
         log.debug("Match row inserted: id={}", match.getId());
 
@@ -202,7 +209,8 @@ public class MatchService {
 
     private MatchRecording replay(Match existing, CreateMatchRequest request, String idempotencyKey) {
         MatchResponse stored = getMatch(existing.getId());
-        if (!stored.gameType().equals(request.gameType()) || !teamsOf(stored).equals(teamsOf(request))) {
+        if (!stored.gameType().equals(request.gameType()) || !teamsOf(stored).equals(teamsOf(request))
+                || stored.privateMatch() != request.isPrivate()) {
             log.warn("Idempotency key reused with a different match: source={}, key={}, existingMatchId={}",
                     request.source(), idempotencyKey, existing.getId());
             throw new IdempotencyKeyReusedException(request.source(), idempotencyKey);
@@ -262,13 +270,19 @@ public class MatchService {
 
     @Transactional(readOnly = true)
     public MatchListResponse getMatchesByGameType(String gameType, int page, int size) {
+        return getMatchesByGameType(gameType, page, size, false);
+    }
+
+    /** The matches of a game type; the private ones only with {@code includePrivate} (spec 038, REQ-038-16). */
+    @Transactional(readOnly = true)
+    public MatchListResponse getMatchesByGameType(String gameType, int page, int size, boolean includePrivate) {
         log.debug("Fetching matches by gameType: gameType={}, page={}, size={}", gameType, page, size);
         GameType gt = gameTypeMapper.findByName(gameType).orElseThrow(() -> {
             log.warn("Game type not found: {}", gameType);
             return new GameTypeNotFoundException(gameType);
         });
-        long total = matchMapper.countByGameType(gameType);
-        List<MatchResponse> content = matchMapper.findByGameType(gameType, size, page * size)
+        long total = matchMapper.countByGameType(gameType, includePrivate);
+        List<MatchResponse> content = matchMapper.findByGameType(gameType, includePrivate, size, page * size)
                 .stream()
                 .map(match -> getMatch(match.getId()))
                 .toList();
@@ -316,7 +330,7 @@ public class MatchService {
         Map<UUID, Map<String, Object>> stats = playerStats.isEmpty() ? null : playerStats;
         return new MatchResponse(match.getId(), match.getGameType(), displayName, match.getSource(),
                 source.map(Source::getDisplayName).orElse(null), source.map(Source::getKind).orElse(null),
-                match.getPlayedAt(), teams, match.getRankedSeasonId(), stats, readModifiers(match));
+                match.getPlayedAt(), teams, match.getRankedSeasonId(), stats, readModifiers(match), match.isPrivateMatch());
     }
 
     /** The modifiers sent with a match as the JSON that is stored; null when the client sent none. */

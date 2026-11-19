@@ -73,6 +73,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "NO_ACTIVE_RANKED_SEASON", ex.getMessage());
     }
 
+    @ExceptionHandler(PrivateRankedMatchException.class)
+    public ProblemDetail handlePrivateRankedMatch(PrivateRankedMatchException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "PRIVATE_RANKED_MATCH", ex.getMessage());
+    }
+
     @ExceptionHandler(DuelChallengeNotFoundException.class)
     public ProblemDetail handleDuelChallengeNotFound(DuelChallengeNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "DUEL_CHALLENGE_NOT_FOUND", ex.getMessage());

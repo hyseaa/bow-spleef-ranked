@@ -20,3 +20,37 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw -B verify
+      # the renderer of the deployment's .env files (spec 039)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deployment tool tests
+        run: node --test deploy/render-env.test.mjs
+
+  # Spec 039, ADR-0037: the image of every commit of main whose tests pass, private on GHCR, tagged with the commit.
+  # The workflow Deploy pulls it on the VPS. Pull requests and other branches stop at the tests.
+  image:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/hyseaa/bow-spleef-ranked-api:${{ github.sha }}
+          build-args: APP_COMMIT=${{ github.sha }}
+          # the package is linked to this repository (its Actions access and its page)
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

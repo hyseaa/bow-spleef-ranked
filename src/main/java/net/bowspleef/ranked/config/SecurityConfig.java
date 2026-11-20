@@ -35,7 +35,9 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/api-docs/**",
                     // a container health check carries no API key (KI-18); the other actuator endpoints need it
-                    "/actuator/health"
+                    "/actuator/health",
+                    // the schema version and the commit, read by the deployment of the bot (spec 039, REQ-039-10)
+                    "/actuator/info"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

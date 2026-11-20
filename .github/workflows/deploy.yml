@@ -1,0 +1,140 @@
+name: Deploy
+
+# Spec 039, ADR-0037: deploys the API to the VPS. Started BY HAND from the Actions tab, on main only. It deploys the
+# image the CI pushed for a commit of main (the newest by default; an older one is a rollback): the .env files are
+# written from the Environment `production` (deploy/env.manifest), a labeled dump is taken, the database stack is never
+# restarted. Order: the API before the bot (the bot's deployment checks the schema version). Set-up, once:
+# docs/operations/deployment.md (the workspace repository).
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'A commit of main to deploy (empty: the newest). An older one rolls back the code, not the database.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: read
+
+# one deployment of the API at a time; a second one waits for the first
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/hyseaa/bow-spleef-ranked-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Secrets: the variables of deploy/env.manifest marked secret, VPS_HOST, VPS_SSH_KEY. Variables: the others,
+    # VPS_USER, VPS_DIR, VPS_KNOWN_HOSTS. Limited to main.
+    environment: production
+    steps:
+      - name: Only from main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::The API is deployed from main only (this run is on $GITHUB_REF)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The commit
+        id: commit
+        env:
+          INPUT_COMMIT: ${{ inputs.commit }}
+        run: |
+          if ! sha=$(git rev-parse --verify --quiet "${INPUT_COMMIT:-origin/main}^{commit}"); then
+            echo "::error::No such commit: ${INPUT_COMMIT}"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not on main: only a commit of main is deployed."
+            exit 1
+          fi
+          head=$(git rev-parse origin/main)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "rollback=$([ "$sha" = "$head" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          # the files of the bundle come from that commit
+          git checkout --quiet --detach "$sha"
+
+      - name: The image of the commit exists
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+          if ! docker manifest inspect "$IMAGE:$SHA" >/dev/null 2>&1; then
+            echo "::error::No image $IMAGE:$SHA: the CI builds one for each commit of main whose tests pass (a commit older than spec 039 has none)."
+            exit 1
+          fi
+          docker logout ghcr.io >/dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The only step that sees every value of the Environment; it prints names, never values
+      - name: The .env files
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+          API_IMAGE: ${{ env.IMAGE }}:${{ steps.commit.outputs.sha }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/bundle/files"
+          node deploy/render-env.mjs deploy/env.manifest "$RUNNER_TEMP/bundle/files"
+
+      - name: The bundle
+        run: |
+          grep -vE '^[[:space:]]*(#|$)' deploy/bundle.txt | while read -r f; do
+            mkdir -p "$RUNNER_TEMP/bundle/files/$(dirname "$f")"
+            cp "$f" "$RUNNER_TEMP/bundle/files/$f"
+          done
+          tar -C "$RUNNER_TEMP/bundle" -czf "$RUNNER_TEMP/bundle.tgz" .
+
+      - name: Deploy on the VPS
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+          ROLLBACK: ${{ steps.commit.outputs.rollback }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_DIR: ${{ vars.VPS_DIR }}
+          VPS_KNOWN_HOSTS: ${{ vars.VPS_KNOWN_HOSTS }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for v in VPS_HOST VPS_SSH_KEY VPS_USER VPS_DIR VPS_KNOWN_HOSTS; do
+            if [ -z "${!v}" ]; then echo "::error::Missing in the Environment: $v"; exit 1; fi
+          done
+          umask 077
+          printf '%s\n' "$VPS_SSH_KEY" > "$RUNNER_TEMP/key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          ssh_vps() {
+            ssh -i "$RUNNER_TEMP/key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=15 "$VPS_USER@$VPS_HOST" "$@"
+          }
+          remote_bundle="$VPS_DIR/.deploy/$SHA"
+          ssh_vps "rm -rf '$remote_bundle' && mkdir -p '$remote_bundle' && tar -xzf - -C '$remote_bundle'" < "$RUNNER_TEMP/bundle.tgz"
+          set +e
+          # the registry token on stdin, never in a command line
+          printf '%s\n' "$GH_TOKEN" \
+            | ssh_vps "bash '$remote_bundle/files/deploy/remote-deploy.sh' '$SHA' '$VPS_DIR' '$remote_bundle' '$GITHUB_ACTOR'" \
+            | tee "$RUNNER_TEMP/out.log"
+          status=${PIPESTATUS[1]}
+          set -e
+          {
+            echo "## Deploy of the API"
+            echo "Commit \`$SHA\`$([ "$ROLLBACK" = true ] && echo ' — **rollback**: an older commit than the head of main. The database schema stays as it is: the migrations are not undone.')"
+            echo
+            sed -n 's/^@@summary@@//p' "$RUNNER_TEMP/out.log"
+            [ "$status" = 0 ] || echo -e "\n**Failed** (exit $status): see the log of this step."
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$RUNNER_TEMP/key"
+          exit "$status"

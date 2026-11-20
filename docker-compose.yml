@@ -1,8 +1,14 @@
 # The API of Bow Spleef Ranked. Its PostgreSQL database runs in a stack of its own (ADR-0018): deploy/db/docker-compose.yml.
 # One-time set-up and migration: docs/operations/deployment.md. The two stacks share the external network ranked-net,
 # and the API reaches the database as bowspleef-ranked-db. POSTGRES_* of .env must equal those of deploy/db/.env.
+# The project's name, as it was from the folder's name: kept explicit so that moving the folder changes nothing (spec 039)
+name: bow-spleef-ranked
+
 services:
   api:
+    # The deployment (spec 039, ADR-0037) sets API_IMAGE to the image of a commit on GHCR and pulls it; without it,
+    # `docker compose up -d --build` builds the image here (the manual procedure, kept as a fallback)
+    image: ${API_IMAGE:-bowspleef-ranked-api:local}
     build: .
     container_name: bowspleef-ranked-api
     restart: unless-stopped

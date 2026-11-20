@@ -1,0 +1,8 @@
+# Spec 039: the files of the commit that the deployment copies to the VPS (with the .env files it renders). The VPS
+# keeps no clone (ADR-0037): anything the VPS needs from the repository is listed here.
+docker-compose.yml
+deploy/db/docker-compose.yml
+deploy/db/.env.example
+deploy/db/backup.sh
+deploy/db/restore-check.sh
+deploy/remote-deploy.sh

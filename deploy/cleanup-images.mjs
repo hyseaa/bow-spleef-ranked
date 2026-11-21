@@ -4,36 +4,46 @@
 //
 //   GH_TOKEN=… OWNER=hyseaa PACKAGE=bow-spleef-ranked-api KEEP=10 DRY_RUN=true node deploy/cleanup-images.mjs
 //
-// Kept: the KEEP most recent tagged versions, and every untagged version created after the oldest of them minus 10
-// minutes (the image and attestation of an image index pushed before spec 041 are untagged versions of the package:
-// deleting them would break a kept image). The rest is deleted, or only listed with DRY_RUN=true.
+// Kept: the KEEP versions whose tags name the most recent commits of main, every version tagged with no known commit
+// of main (never deleted), and every untagged version created within 10 minutes of a kept one (the image and
+// attestation of an image index pushed before spec 041 are untagged versions of the package: deleting them would
+// break a kept image). The rest is deleted, or only listed with DRY_RUN=true.
+//
+// The recency comes from git, not from the registry: GHCR keeps one version per digest, so an identical image pushed
+// later only adds its tag to the old version, whose dates do not change (seen on the bot's package, 2026-11-21).
 import { appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PARTS_WINDOW_MS = 10 * 60 * 1000;
 
-/** @param versions [{ id, created_at, metadata: { container: { tags: [] } } }] @returns {{ keep: [], remove: [] }} */
-export function planCleanup(versions, keepCount) {
+/**
+ * @param versions  [{ id, created_at, metadata: { container: { tags: [] } } }]
+ * @param keepCount how many images to keep
+ * @param history   the commits of main, newest first (full hashes)
+ * @returns {{ keep: [], remove: [] }}
+ */
+export function planCleanup(versions, keepCount, history) {
   if (!Number.isInteger(keepCount) || keepCount < 1) throw new Error('KEEP must be a whole number of at least 1');
+  if (!Array.isArray(history) || history.length === 0) throw new Error('the history of main is needed');
+  const rank = new Map(history.map((sha, i) => [sha, i]));
   const created = (v) => Date.parse(v.created_at);
-  // A push whose image is identical to an older one adds its tag to that older version (GHCR keeps one version per
-  // digest): its last update, not its creation, says how recent the image is (seen on the bot's package, 2026-11-21)
-  const recent = (v) => Math.max(created(v), Date.parse(v.updated_at ?? v.created_at));
   const tags = (v) => v?.metadata?.container?.tags ?? [];
-  const sorted = [...versions].sort((a, b) => recent(b) - recent(a));
-  const tagged = sorted.filter((v) => tags(v).length > 0);
-  if (tagged.length <= keepCount) {
-    return { keep: sorted, remove: [] };
-  }
-  const keptTagged = tagged.slice(0, keepCount);
+  // the most recent commit among a version's tags; Infinity when none is a commit of main
+  const recency = (v) => Math.min(...tags(v).map((t) => rank.get(t) ?? Infinity));
+  const known = versions.filter((v) => tags(v).length > 0 && recency(v) !== Infinity)
+    .sort((a, b) => recency(a) - recency(b));
+  const keptTagged = known.slice(0, keepCount);
   const keptIds = new Set(keptTagged.map((v) => v.id));
-  // the parts of a kept image index are untagged versions created with it
   const isPartOfKept = (v) => keptTagged.some((k) => Math.abs(created(v) - created(k)) <= PARTS_WINDOW_MS);
   const keep = [];
   const remove = [];
-  for (const v of sorted) {
-    const isKept = tags(v).length > 0 ? keptIds.has(v.id) : isPartOfKept(v);
+  for (const v of [...versions].sort((a, b) => created(b) - created(a))) {
+    let isKept;
+    if (tags(v).length === 0) isKept = isPartOfKept(v);
+    else if (recency(v) === Infinity) isKept = true; // a tag that is no commit of main: never deleted
+    else isKept = keptIds.has(v.id);
     (isKept ? keep : remove).push(v);
   }
   return { keep, remove };
@@ -72,7 +82,9 @@ async function main() {
     versions.push(...batch);
     if (batch.length < 100) break;
   }
-  const { keep, remove } = planCleanup(versions, keepCount);
+  // the commits of main, newest first (the workflow checks out main with its whole history)
+  const history = execFileSync('git', ['rev-list', 'HEAD'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+  const { keep, remove } = planCleanup(versions, keepCount, history);
   const lines = [`## Clean-up of ${name}${dryRun ? ' (dry run: nothing deleted)' : ''}`, '',
     `- Versions: ${versions.length}; kept: ${keep.length} (the ${keepCount} most recent images and their parts); ${dryRun ? 'to delete' : 'deleted'}: ${remove.length}`];
   for (const v of remove) {
@@ -80,7 +92,7 @@ async function main() {
     lines.push(`- ${dryRun ? 'Would delete' : 'Deleted'} ${describe(v)} (${v.created_at})`);
   }
   lines.push('', '### Kept');
-  for (const v of keep) lines.push(`- ${describe(v)} (created ${v.created_at}, updated ${v.updated_at ?? "?"})`);
+  for (const v of keep) lines.push(`- ${describe(v)} (${v.created_at})`);
   const summary = lines.join('\n');
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);

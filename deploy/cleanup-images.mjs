@@ -16,19 +16,24 @@ export const PARTS_WINDOW_MS = 10 * 60 * 1000;
 /** @param versions [{ id, created_at, metadata: { container: { tags: [] } } }] @returns {{ keep: [], remove: [] }} */
 export function planCleanup(versions, keepCount) {
   if (!Number.isInteger(keepCount) || keepCount < 1) throw new Error('KEEP must be a whole number of at least 1');
-  const time = (v) => Date.parse(v.created_at);
+  const created = (v) => Date.parse(v.created_at);
+  // A push whose image is identical to an older one adds its tag to that older version (GHCR keeps one version per
+  // digest): its last update, not its creation, says how recent the image is (seen on the bot's package, 2026-11-21)
+  const recent = (v) => Math.max(created(v), Date.parse(v.updated_at ?? v.created_at));
   const tags = (v) => v?.metadata?.container?.tags ?? [];
-  const sorted = [...versions].sort((a, b) => time(b) - time(a));
+  const sorted = [...versions].sort((a, b) => recent(b) - recent(a));
   const tagged = sorted.filter((v) => tags(v).length > 0);
-  const keptTagged = new Set(tagged.slice(0, keepCount).map((v) => v.id));
   if (tagged.length <= keepCount) {
     return { keep: sorted, remove: [] };
   }
-  const oldestKept = Math.min(...tagged.slice(0, keepCount).map(time));
+  const keptTagged = tagged.slice(0, keepCount);
+  const keptIds = new Set(keptTagged.map((v) => v.id));
+  // the parts of a kept image index are untagged versions created with it
+  const isPartOfKept = (v) => keptTagged.some((k) => Math.abs(created(v) - created(k)) <= PARTS_WINDOW_MS);
   const keep = [];
   const remove = [];
   for (const v of sorted) {
-    const isKept = tags(v).length > 0 ? keptTagged.has(v.id) : time(v) >= oldestKept - PARTS_WINDOW_MS;
+    const isKept = tags(v).length > 0 ? keptIds.has(v.id) : isPartOfKept(v);
     (isKept ? keep : remove).push(v);
   }
   return { keep, remove };
@@ -75,7 +80,7 @@ async function main() {
     lines.push(`- ${dryRun ? 'Would delete' : 'Deleted'} ${describe(v)} (${v.created_at})`);
   }
   lines.push('', '### Kept');
-  for (const v of keep) lines.push(`- ${describe(v)} (${v.created_at})`);
+  for (const v of keep) lines.push(`- ${describe(v)} (created ${v.created_at}, updated ${v.updated_at ?? "?"})`);
   const summary = lines.join('\n');
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);

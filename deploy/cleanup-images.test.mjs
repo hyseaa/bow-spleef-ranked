@@ -38,6 +38,28 @@ test('REQ-041-02: a part pushed just before its index is kept with it', () => {
   assert.deepEqual(ids(planCleanup(versions, 2).remove), [1]);
 });
 
+test('REQ-041-02: an old version that got the newest tag (same image pushed again) counts as recent', () => {
+  // GHCR keeps one version per digest: an identical image pushed later adds its tag to the old version
+  const reused = { ...image(1, 0, 'newest'), updated_at: at(5000) };
+  const versions = [reused, image(2, 1000), image(3, 2000), image(4, 3000)];
+  const { keep, remove } = planCleanup(versions, 2);
+  assert.deepEqual(ids(keep), [1, 4]);
+  assert.deepEqual(ids(remove), [2, 3]);
+});
+
+test('REQ-041-02: an untagged part is kept when it belongs to any kept image, not only the oldest', () => {
+  const versions = [
+    image(1, 0), part(2, 0),
+    image(3, 600), part(4, 600),
+    { ...image(5, 1200, 'reused'), updated_at: at(9000) },
+    image(6, 1800),
+  ];
+  // kept: 5 (recent by its update) and 6; 3 and 1 go, with their parts
+  const { keep, remove } = planCleanup(versions, 2);
+  assert.deepEqual(ids(keep), [5, 6]);
+  assert.deepEqual(ids(remove), [1, 2, 3, 4]);
+});
+
 test('REQ-041-02: KEEP must be at least 1', () => {
   assert.throws(() => planCleanup([], 0), /at least 1/);
 });

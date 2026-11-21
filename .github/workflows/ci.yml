@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '22'
       - name: Deployment tool tests
-        run: node --test deploy/render-env.test.mjs
+        run: node --test deploy/render-env.test.mjs deploy/cleanup-images.test.mjs
 
   # Spec 039, ADR-0037: the image of every commit of main whose tests pass, private on GHCR, tagged with the commit.
   # The workflow Deploy pulls it on the VPS. Pull requests and other branches stop at the tests.
@@ -52,5 +52,8 @@ jobs:
           build-args: APP_COMMIT=${{ github.sha }}
           # the package is linked to this repository (its Actions access and its page)
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          # one tagged version per push, no attestation as untagged versions (spec 041: the clean-up counts versions)
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

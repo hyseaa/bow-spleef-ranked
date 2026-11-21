@@ -1,0 +1,42 @@
+name: Clean up images
+
+# Spec 041: deletes the old versions of this repository's image on GHCR (private storage is counted against the
+# account's plan), keeping the 10 most recent images and their parts, so that a rollback reaches the last 10 merges to
+# main (REQ-039-11). Every Monday, and by hand (a dry run by default). The token deletes only if this repository has
+# the Admin role in the package's "Manage Actions access".
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted, delete nothing'
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  packages: write
+
+concurrency:
+  group: cleanup-images
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Delete the old versions of bow-spleef-ranked-api
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: bow-spleef-ranked-api
+          KEEP: '10'
+          # a scheduled run deletes; a run by hand deletes only when dry_run is unticked
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: node deploy/cleanup-images.mjs

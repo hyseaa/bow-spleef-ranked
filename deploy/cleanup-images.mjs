@@ -74,7 +74,8 @@ async function main() {
     if (!dryRun) await github('DELETE', `${base}/${v.id}`, token);
     lines.push(`- ${dryRun ? 'Would delete' : 'Deleted'} ${describe(v)} (${v.created_at})`);
   }
-  lines.push('', `Oldest image kept: ${describe(keep.filter((v) => (v.metadata?.container?.tags ?? []).length).at(-1) ?? {})}`);
+  lines.push('', '### Kept');
+  for (const v of keep) lines.push(`- ${describe(v)} (${v.created_at})`);
   const summary = lines.join('\n');
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);

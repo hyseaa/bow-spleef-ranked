@@ -80,12 +80,21 @@ jobs:
         with:
           node-version: '22'
 
-      # The only step that sees every value of the Environment; it prints names, never values
+      # The values of deploy/env.manifest, each by name: secrets.<NAME> for a secret, vars.<NAME> for a variable, and the
+      # image (never toJSON(secrets): this step gets only the secrets it writes). It prints names, never values.
+      # `node deploy/render-env.mjs --check-workflow` (CI) checks this list against the manifest.
       - name: The .env files
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
-          VARS_JSON: ${{ toJSON(vars) }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          API_KEY: ${{ secrets.API_KEY }}
+          HYPIXEL_API_KEY: ${{ secrets.HYPIXEL_API_KEY }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           API_IMAGE: ${{ env.IMAGE }}:${{ steps.commit.outputs.sha }}
+          BACKUP_DIR: ${{ vars.BACKUP_DIR }}
+          KEEP: ${{ vars.KEEP }}
+          OFFSITE_COMMAND: ${{ secrets.OFFSITE_COMMAND }}
         run: |
           umask 077
           mkdir -p "$RUNNER_TEMP/bundle/files"

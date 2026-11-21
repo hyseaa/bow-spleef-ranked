@@ -2,13 +2,17 @@
 // Spec 039 (REQ-039-04, REQ-039-05), ADR-0037: writes the .env files of the VPS from the GitHub Environment.
 // The same file is in ../api/deploy/ and ../bot/deploy/: change both.
 //
-//   SECRETS_JSON='${{ toJSON(secrets) }}' VARS_JSON='${{ toJSON(vars) }}' node deploy/render-env.mjs deploy/env.manifest <out dir>
+//   node deploy/render-env.mjs deploy/env.manifest <out dir>             (in the step "The .env files" of deploy.yml)
+//   node deploy/render-env.mjs --check-workflow deploy/env.manifest .github/workflows/deploy.yml   (in the CI)
 //
 // The manifest lists every environment variable of the project, one per line:
 //   <file> <NAME> <source> <need>      source: secret | var | workflow; need: required | optional
 //   -      <NAME> none     <reason…>   documented, but never written by the deployment
-// A `workflow` value comes from the environment of this process (the image the workflow deploys). Values are written
-// single-quoted: Docker Compose and the shell then take them literally (no `$` interpolation). Nothing is written if a
+// Each value comes from the environment of this process: the step "The .env files" maps each variable of the manifest
+// by name, `NAME: ${{ secrets.NAME }}` for a secret, `NAME: ${{ vars.NAME }}` for a variable, and sets the `workflow`
+// ones itself (the image). Never `toJSON(secrets)`: the step gets only the secrets it writes (GitHub flags a workflow
+// that hands every secret to one step). `--check-workflow` checks that this mapping and the manifest agree. Values are
+// written single-quoted: Docker Compose and the shell then take them literally (no `$` interpolation). Nothing is written if a
 // required variable is missing or a value cannot be written; the names are printed, never the values.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,18 +54,17 @@ export function manifestNames(entries) {
 }
 
 /**
- * The contents of the files to write, from the values of the Environment.
+ * The contents of the files to write, from the values by name (the environment of the step).
  * @returns {{ files: Record<string, string>, written: Record<string, string[]>, missing: string[], errors: string[] }}
  */
-export function render(entries, { secrets = {}, vars = {}, workflow = {} }) {
+export function render(entries, values) {
   const files = {};
   const written = {};
   const missing = [];
   const errors = [];
   for (const e of entries) {
     if (e.source === 'none') continue;
-    const from = e.source === 'secret' ? secrets : e.source === 'var' ? vars : workflow;
-    const value = from[e.name];
+    const value = values[e.name];
     if (value === undefined || value === null || value === '') {
       if (e.need === 'required') missing.push(`${e.name} (${e.source}, ${e.file})`);
       continue;
@@ -77,27 +80,62 @@ export function render(entries, { secrets = {}, vars = {}, workflow = {} }) {
   return { files, written, missing, errors };
 }
 
-function parseJsonEnv(name) {
-  const raw = process.env[name];
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error(`${name} is not JSON`);
+const STEP = 'The .env files';
+
+/**
+ * The differences between the manifest and the `env:` of the step "The .env files" of a workflow: each secret mapped
+ * from `secrets.<same name>`, each variable from `vars.<same name>`, each `workflow` one set, nothing else.
+ * @returns {string[]} the problems, empty when they agree
+ */
+export function checkWorkflowMapping(entries, workflowText) {
+  const lines = workflowText.split(/\r?\n/);
+  const start = lines.findIndex(l => l.trim() === `- name: ${STEP}`);
+  if (start < 0) return [`no step "${STEP}"`];
+  const envAt = lines.findIndex((l, i) => i > start && /^\s+env:\s*$/.test(l));
+  const next = lines.findIndex((l, i) => i > start && /^\s+- (name|uses):/.test(l));
+  if (envAt < 0 || (next >= 0 && envAt > next)) return [`the step "${STEP}" has no env:`];
+  const indent = lines[envAt].match(/^\s*/)[0].length;
+  const mapped = new Map();
+  for (let i = envAt + 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.trim() === '' || l.trim().startsWith('#')) continue;
+    if (l.match(/^\s*/)[0].length <= indent) break;
+    const m = l.match(/^\s+([A-Z][A-Z0-9_]*):\s*(.*)$/);
+    if (m) mapped.set(m[1], m[2].trim());
   }
+  const problems = [];
+  const deployed = new Map();
+  for (const e of entries) if (e.source !== 'none') deployed.set(e.name, e.source);
+  for (const [name, source] of deployed) {
+    const value = mapped.get(name);
+    if (value === undefined) { problems.push(`${name} (${source}) is not in the env: of "${STEP}"`); continue; }
+    if (source === 'secret' && value !== `\${{ secrets.${name} }}`) problems.push(`${name} must be \${{ secrets.${name} }}`);
+    if (source === 'var' && value !== `\${{ vars.${name} }}`) problems.push(`${name} must be \${{ vars.${name} }}`);
+    if (source === 'workflow' && /\$\{\{\s*(secrets|vars)\./.test(value)) problems.push(`${name} is set by the workflow, not from the Environment`);
+  }
+  for (const [name, value] of mapped) {
+    if (!deployed.has(name)) problems.push(`${name} is in the env: of "${STEP}" but not in the manifest`);
+    if (/toJSON\(\s*(secrets|vars)\s*\)/.test(value)) problems.push(`${name}: never toJSON(secrets) or toJSON(vars)`);
+  }
+  return problems;
 }
 
-function main([manifestPath, outDir]) {
+function main(args) {
+  if (args[0] === '--check-workflow') {
+    const [, manifestPath, workflowPath] = args;
+    const problems = checkWorkflowMapping(parseManifest(fs.readFileSync(manifestPath, 'utf8')),
+      fs.readFileSync(workflowPath, 'utf8'));
+    for (const p of problems) console.error(`::error::${workflowPath}: ${p}`);
+    if (!problems.length) console.log(`${workflowPath} maps every variable of ${manifestPath}`);
+    return problems.length ? 1 : 0;
+  }
+  const [manifestPath, outDir] = args;
   if (!manifestPath || !outDir) {
-    console.error('usage: node render-env.mjs <manifest> <out dir>');
+    console.error('usage: node render-env.mjs <manifest> <out dir> | --check-workflow <manifest> <workflow>');
     return 2;
   }
   const entries = parseManifest(fs.readFileSync(manifestPath, 'utf8'));
-  const workflow = Object.fromEntries(
-    entries.filter(e => e.source === 'workflow').map(e => [e.name, process.env[e.name]]));
-  const { files, written, missing, errors } = render(entries, {
-    secrets: parseJsonEnv('SECRETS_JSON'), vars: parseJsonEnv('VARS_JSON'), workflow,
-  });
+  const { files, written, missing, errors } = render(entries, process.env);
   if (missing.length || errors.length) {
     for (const m of missing) console.error(`::error::Missing in the Environment: ${m}`);
     for (const m of errors) console.error(`::error::${m}`);
